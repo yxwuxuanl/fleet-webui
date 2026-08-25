@@ -104,6 +104,11 @@
             </div>
           </section>
           <aside class="ntfy-note" id="settings"><span class="ntfy-icon">♧</span><div><strong>Reconcile notifications</strong><p id="notification-detail">Manual bundle reconciles are sent to the configured ntfy channel.</p></div><a href="https://docs.ntfy.sh/publish/" target="_blank" rel="noreferrer">ntfy docs ↗</a></aside>
+          <aside class="browser-notification-note" aria-labelledby="browser-notification-title">
+            <span class="browser-notification-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></span>
+            <div><strong id="browser-notification-title">Browser alerts</strong><p id="browser-notification-detail">Enable a system alert when a manual reconcile is accepted or cannot be requested.</p></div>
+            <button id="browser-notification-button" class="browser-notification-button" type="button" aria-pressed="false">Enable browser alerts</button>
+          </aside>
         </section>
       </main>
     </div>
@@ -116,7 +121,7 @@
         <h2 id="modal-title">Reconcile bundle?</h2>
         <p id="modal-description">Fleet will redeploy this bundle to its configured targets.</p>
         <dl id="reconcile-summary" class="reconcile-summary"></dl>
-        <p class="modal-note">A notification is sent to the configured ntfy channel after Fleet accepts this request.</p>
+        <p class="modal-note">The configured ntfy channel is notified after Fleet accepts this request. This browser also receives an alert when enabled.</p>
         <div class="modal-actions"><button type="button" class="button secondary" data-close-modal>Cancel</button><button type="button" class="button primary" id="confirm-reconcile">Reconcile</button></div>
       </section>
     </div>

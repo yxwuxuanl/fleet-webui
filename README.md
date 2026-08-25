@@ -48,6 +48,12 @@ Once Fleet accepts the patch, the server posts a JSON message to the fixed `NTFY
 
 Keep `NTFY_TOKEN` in a Kubernetes Secret or another secret manager. Do not put it in browser code.
 
+### Browser system notifications
+
+The UI offers an opt-in **Enable browser alerts** control below the Git repository list. Once a user allows it, the browser shows a local system notification when that user’s manual reconcile request is accepted or cannot be requested. The opt-in is kept only in that browser, and no ntfy credentials are sent to it.
+
+Browser alerts require browser support, an explicit user permission, and HTTPS in deployed environments (localhost is suitable for development). They supplement rather than replace the server-side ntfy delivery; they do not persist after the browser has been closed.
+
 ## Container image
 
 ```sh

@@ -1,0 +1,30 @@
+{{- if .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "fleet-webui.fullname" . }}
+  labels:
+    {{- include "fleet-webui.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["fleet.cattle.io"]
+    resources: ["bundles", "gitrepos"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["fleet.cattle.io"]
+    resources: ["bundles"]
+    verbs: ["patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "fleet-webui.fullname" . }}
+  labels:
+    {{- include "fleet-webui.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "fleet-webui.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "fleet-webui.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

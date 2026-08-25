@@ -7,5 +7,5 @@
 .DS_Store
 
 # Go build and test output
-fleet-webui
+/fleet-webui
 coverage.out

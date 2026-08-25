@@ -1,5 +1,7 @@
 const refreshIntervals = [0, 15, 30, 60, 300];
 const savedRefreshInterval = Number(window.localStorage.getItem('fleet-webui.refreshIntervalSeconds'));
+const browserNotificationStorageKey = 'fleet-webui.browserNotificationsEnabled';
+const savedBrowserNotificationsEnabled = window.localStorage.getItem(browserNotificationStorageKey) === 'true';
 
 const state = {
   bundles: [],
@@ -16,6 +18,7 @@ const state = {
   selectedBundle: null,
   detailBundle: null,
   detailGitRepo: null,
+  browserNotificationsEnabled: savedBrowserNotificationsEnabled,
 };
 
 const elements = {
@@ -39,6 +42,8 @@ const elements = {
   bundlePageNext: document.querySelector('#bundle-page-next'),
   repositoryCountLabel: document.querySelector('#repository-count-label'),
   notificationDetail: document.querySelector('#notification-detail'),
+  browserNotificationDetail: document.querySelector('#browser-notification-detail'),
+  browserNotificationButton: document.querySelector('#browser-notification-button'),
   modeLabel: document.querySelector('#mode-label'),
   modalRoot: document.querySelector('#modal-root'),
   summary: document.querySelector('#reconcile-summary'),
@@ -107,6 +112,82 @@ function refreshIntervalLabel(seconds) {
   if (seconds === 60) return '1 min';
   if (seconds === 300) return '5 min';
   return `${seconds} sec`;
+}
+
+function browserNotificationPermission() {
+  return 'Notification' in window ? window.Notification.permission : 'unsupported';
+}
+
+function browserNotificationsActive() {
+  return state.browserNotificationsEnabled && browserNotificationPermission() === 'granted';
+}
+
+function renderBrowserNotifications() {
+  const permission = browserNotificationPermission();
+  const active = browserNotificationsActive();
+  elements.browserNotificationButton.disabled = permission === 'unsupported' || permission === 'denied';
+  elements.browserNotificationButton.setAttribute('aria-pressed', String(active));
+
+  if (permission === 'unsupported') {
+    elements.browserNotificationButton.textContent = 'Browser alerts unavailable';
+    elements.browserNotificationDetail.textContent = 'This browser does not support system notifications.';
+  } else if (permission === 'denied') {
+    elements.browserNotificationButton.textContent = 'Browser alerts blocked';
+    elements.browserNotificationDetail.textContent = 'Allow notifications for this site in your browser settings, then reload Fleet Console.';
+  } else if (active) {
+    elements.browserNotificationButton.textContent = 'Turn off browser alerts';
+    elements.browserNotificationDetail.textContent = 'System alerts are enabled for manual reconcile requests on this device.';
+  } else {
+    elements.browserNotificationButton.textContent = 'Enable browser alerts';
+    elements.browserNotificationDetail.textContent = 'Enable a system alert when a manual reconcile is accepted or cannot be requested.';
+  }
+}
+
+function notifyBrowser(title, body, tag) {
+  if (!browserNotificationsActive()) return;
+  try {
+    new window.Notification(title, { body, tag });
+  } catch {
+    state.browserNotificationsEnabled = false;
+    window.localStorage.setItem(browserNotificationStorageKey, 'false');
+    renderBrowserNotifications();
+  }
+}
+
+async function toggleBrowserNotifications() {
+  if (browserNotificationsActive()) {
+    state.browserNotificationsEnabled = false;
+    window.localStorage.setItem(browserNotificationStorageKey, 'false');
+    renderBrowserNotifications();
+    toast('Browser alerts turned off.');
+    return;
+  }
+
+  if (browserNotificationPermission() === 'unsupported') {
+    toast('Browser alerts are not supported by this browser.', 'warning');
+    return;
+  }
+  if (browserNotificationPermission() === 'denied') {
+    toast('Allow browser notifications for this site, then reload Fleet Console.', 'warning');
+    return;
+  }
+
+  try {
+    const permission = await window.Notification.requestPermission();
+    if (permission !== 'granted') {
+      renderBrowserNotifications();
+      toast('Browser alerts were not enabled.', 'warning');
+      return;
+    }
+    state.browserNotificationsEnabled = true;
+    window.localStorage.setItem(browserNotificationStorageKey, 'true');
+    renderBrowserNotifications();
+    toast('Browser alerts enabled for manual reconciles.');
+    notifyBrowser('Fleet Console alerts enabled', 'You will receive alerts when a manual reconcile is accepted or cannot be requested.', 'fleet-browser-alerts-enabled');
+  } catch {
+    renderBrowserNotifications();
+    toast('Browser alerts could not be enabled in this context.', 'warning');
+  }
 }
 
 function updateAutoRefreshStatus() {
@@ -220,6 +301,7 @@ function renderChrome() {
     : state.health.notificationConfigured
       ? 'Every manual reconcile posts to the configured ntfy channel.'
       : 'ntfy is not configured yet; reconciles will run without delivery notifications.';
+  renderBrowserNotifications();
 }
 
 function openReconcile(id) {
@@ -408,9 +490,16 @@ async function confirmReconcile() {
     closeModal();
     const suffix = result.notification === 'sent' ? ' ntfy notified.' : result.notification === 'simulated' ? ' Demo ntfy notification queued.' : result.notification === 'failed' ? ' Reconcile started, but ntfy delivery failed.' : ' Reconcile started; ntfy is not configured.';
     toast(`${bundle.name} reconcile requested (generation ${result.generation}).${suffix}`, result.notification === 'failed' ? 'warning' : 'success');
+    const notificationIssue = result.notification === 'failed';
+    notifyBrowser(
+      notificationIssue ? 'Fleet reconcile requested with ntfy warning' : 'Fleet reconcile requested',
+      `${bundle.namespace}/${bundle.name} was accepted at generation ${result.generation}.${notificationIssue ? ' ntfy delivery failed.' : ''}`,
+      `fleet-reconcile-${bundle.namespace}-${bundle.name}`,
+    );
     await loadData({ quiet: true });
   } catch (error) {
     toast(error.message, 'error');
+    notifyBrowser('Fleet reconcile request failed', `${bundle.namespace}/${bundle.name}: ${error.message}`, `fleet-reconcile-${bundle.namespace}-${bundle.name}`);
   } finally {
     elements.confirm.disabled = false;
     elements.confirm.textContent = 'Reconcile';
@@ -418,6 +507,7 @@ async function confirmReconcile() {
 }
 
 elements.confirm.addEventListener('click', confirmReconcile);
+elements.browserNotificationButton.addEventListener('click', toggleBrowserNotifications);
 elements.refresh.addEventListener('click', () => loadData());
 elements.refreshInterval.value = String(state.refreshIntervalSeconds);
 elements.refreshInterval.addEventListener('change', event => {
@@ -459,4 +549,5 @@ window.addEventListener('keydown', event => {
   else if (!elements.gitRepoDetailRoot.hidden) closeGitRepoDetail();
 });
 
+renderBrowserNotifications();
 loadData({ quiet: true });

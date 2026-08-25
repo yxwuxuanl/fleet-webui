@@ -1,0 +1,83 @@
+{{- if and .Values.ntfy.enabled (not .Values.ntfy.existingSecret) }}
+{{- fail "ntfy.existingSecret is required when ntfy.enabled is true" }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "fleet-webui.fullname" . }}
+  labels:
+    {{- include "fleet-webui.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "fleet-webui.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "fleet-webui.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "fleet-webui.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: fleet-webui
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: LISTEN_ADDR
+              value: ":8080"
+            - name: FLEET_CONNECTION_MODE
+              value: {{ .Values.fleet.connectionMode | quote }}
+            - name: REQUEST_TIMEOUT_SECONDS
+              value: {{ .Values.fleet.requestTimeoutSeconds | quote }}
+            {{- with .Values.appBaseURL }}
+            - name: APP_BASE_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if .Values.ntfy.enabled }}
+            - name: NTFY_BASE_URL
+              value: {{ required "ntfy.baseURL is required when ntfy.enabled is true" .Values.ntfy.baseURL | quote }}
+            - name: NTFY_TOPIC
+              value: {{ required "ntfy.topic is required when ntfy.enabled is true" .Values.ntfy.topic | quote }}
+            - name: NTFY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ntfy.existingSecret }}
+                  key: {{ .Values.ntfy.tokenKey }}
+            {{- end }}
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
