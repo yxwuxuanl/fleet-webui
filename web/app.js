@@ -1,0 +1,462 @@
+const refreshIntervals = [0, 15, 30, 60, 300];
+const savedRefreshInterval = Number(window.localStorage.getItem('fleet-webui.refreshIntervalSeconds'));
+
+const state = {
+  bundles: [],
+  bundleQuery: '',
+  bundlePage: 1,
+  bundlesPerPage: 10,
+  refreshIntervalSeconds: refreshIntervals.includes(savedRefreshInterval) ? savedRefreshInterval : 15,
+  refreshTimer: null,
+  refreshCountdownTimer: null,
+  nextRefreshAt: null,
+  isRefreshing: false,
+  repositories: [],
+  health: { demo: false, mode: 'demo', notificationConfigured: false, connectionError: '' },
+  selectedBundle: null,
+  detailBundle: null,
+  detailGitRepo: null,
+};
+
+const elements = {
+  bundlesBody: document.querySelector('#bundles-body'),
+  repositoriesBody: document.querySelector('#repositories-body'),
+  bundleEmpty: document.querySelector('#bundle-empty'),
+  repositoriesEmpty: document.querySelector('#repositories-empty'),
+  attentionCount: document.querySelector('#attention-count'),
+  healthyCount: document.querySelector('#healthy-count'),
+  healthyPercent: document.querySelector('#healthy-percent'),
+  attentionSummaryCount: document.querySelector('#attention-summary-count'),
+  attentionPercent: document.querySelector('#attention-percent'),
+  totalCount: document.querySelector('#total-count'),
+  repositoryCount: document.querySelector('#repository-count'),
+  bundleCountLabel: document.querySelector('#bundle-count-label'),
+  bundleSearch: document.querySelector('#bundle-search'),
+  bundlePagination: document.querySelector('#bundle-pagination'),
+  bundlePageSummary: document.querySelector('#bundle-page-summary'),
+  bundlePageLabel: document.querySelector('#bundle-page-label'),
+  bundlePagePrevious: document.querySelector('#bundle-page-previous'),
+  bundlePageNext: document.querySelector('#bundle-page-next'),
+  repositoryCountLabel: document.querySelector('#repository-count-label'),
+  notificationDetail: document.querySelector('#notification-detail'),
+  modeLabel: document.querySelector('#mode-label'),
+  modalRoot: document.querySelector('#modal-root'),
+  summary: document.querySelector('#reconcile-summary'),
+  confirm: document.querySelector('#confirm-reconcile'),
+  detailRoot: document.querySelector('#detail-root'),
+  detailTitle: document.querySelector('#detail-title'),
+  detailNamespace: document.querySelector('#detail-namespace'),
+  detailLoading: document.querySelector('#detail-loading'),
+  detailContent: document.querySelector('#detail-content'),
+  detailHealth: document.querySelector('#detail-health'),
+  detailState: document.querySelector('#detail-state'),
+  detailOverview: document.querySelector('#detail-overview'),
+  detailSummary: document.querySelector('#detail-summary'),
+  detailConditions: document.querySelector('#detail-conditions'),
+  detailReconcile: document.querySelector('#detail-reconcile'),
+  gitRepoDetailRoot: document.querySelector('#gitrepo-detail-root'),
+  gitRepoDetailTitle: document.querySelector('#gitrepo-detail-title'),
+  gitRepoDetailNamespace: document.querySelector('#gitrepo-detail-namespace'),
+  gitRepoDetailLoading: document.querySelector('#gitrepo-detail-loading'),
+  gitRepoDetailContent: document.querySelector('#gitrepo-detail-content'),
+  gitRepoDetailHealth: document.querySelector('#gitrepo-detail-health'),
+  gitRepoDetailState: document.querySelector('#gitrepo-detail-state'),
+  gitRepoDetailOverview: document.querySelector('#gitrepo-detail-overview'),
+  gitRepoDetailSummary: document.querySelector('#gitrepo-detail-summary'),
+  gitRepoDetailConditions: document.querySelector('#gitrepo-detail-conditions'),
+  refreshInterval: document.querySelector('#refresh-interval'),
+  autoRefreshStatus: document.querySelector('#auto-refresh-status'),
+  refresh: document.querySelector('#refresh-button'),
+  toastRegion: document.querySelector('#toast-region'),
+};
+
+async function api(path, options = {}) {
+  const response = await fetch(path, { headers: { Accept: 'application/json', ...options.headers }, ...options });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || `Request failed (${response.status})`);
+  return body;
+}
+
+function escapeHtml(value = '') {
+  return String(value).replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
+}
+
+function dateLabel(value) {
+  if (!value) return '—';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.valueOf())) return value;
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(parsed);
+}
+
+function statusClass(value = '') {
+  const normalized = value.toLowerCase().replace(/\s+/g, '-');
+  if (['healthy', 'ready', 'current'].includes(normalized)) return 'healthy';
+  if (['error', 'errapplied', 'failed', 'notready'].includes(normalized)) return 'error';
+  if (['out-of-sync', 'outofsync', 'modified', 'pending'].includes(normalized)) return 'warning';
+  if (['reconciling', 'inprogress', 'in-progress', 'waitapplied'].includes(normalized)) return 'reconciling';
+  return 'unknown';
+}
+
+function statusText(value = '') {
+  const normalized = String(value).toLowerCase();
+  const labels = { current: 'Synced', inprogress: 'Syncing', 'in-progress': 'Syncing', failed: 'Error', outofsync: 'Out of sync', errapplied: 'Error', notready: 'Not ready', waitapplied: 'Reconciling' };
+  return labels[normalized] || value || 'Unknown';
+}
+
+function refreshIntervalLabel(seconds) {
+  if (seconds === 60) return '1 min';
+  if (seconds === 300) return '5 min';
+  return `${seconds} sec`;
+}
+
+function updateAutoRefreshStatus() {
+  if (state.isRefreshing) {
+    elements.autoRefreshStatus.textContent = 'Refreshing…';
+    return;
+  }
+  if (!state.refreshIntervalSeconds || !state.nextRefreshAt) {
+    elements.autoRefreshStatus.textContent = 'Manual';
+    return;
+  }
+  const seconds = Math.max(0, Math.ceil((state.nextRefreshAt - Date.now()) / 1000));
+  elements.autoRefreshStatus.textContent = `in ${seconds}s`;
+}
+
+function scheduleAutoRefresh() {
+  window.clearTimeout(state.refreshTimer);
+  window.clearInterval(state.refreshCountdownTimer);
+  state.refreshTimer = null;
+  state.refreshCountdownTimer = null;
+  state.nextRefreshAt = null;
+  if (!state.refreshIntervalSeconds) {
+    updateAutoRefreshStatus();
+    return;
+  }
+  state.nextRefreshAt = Date.now() + state.refreshIntervalSeconds * 1000;
+  updateAutoRefreshStatus();
+  state.refreshCountdownTimer = window.setInterval(updateAutoRefreshStatus, 1000);
+  state.refreshTimer = window.setTimeout(() => loadData({ quiet: true }), state.refreshIntervalSeconds * 1000);
+}
+
+function matchingBundles() {
+  const query = state.bundleQuery.trim().toLocaleLowerCase();
+  if (!query) return state.bundles;
+  return state.bundles.filter(bundle => [bundle.name, bundle.namespace, bundle.gitRepo, bundle.commit]
+    .some(value => String(value || '').toLocaleLowerCase().includes(query)));
+}
+
+function renderBundles() {
+  const matching = matchingBundles();
+  const pageCount = Math.max(1, Math.ceil(matching.length / state.bundlesPerPage));
+  state.bundlePage = Math.min(state.bundlePage, pageCount);
+  const first = (state.bundlePage - 1) * state.bundlesPerPage;
+  const visible = matching.slice(first, first + state.bundlesPerPage);
+  const rows = visible.map(bundle => `
+    <tr title="${escapeHtml(bundle.message || '')}">
+      <td><button class="bundle-name-button" type="button" data-bundle-detail="${escapeHtml(bundle.namespace)}/${escapeHtml(bundle.name)}">${escapeHtml(bundle.name)}</button></td>
+      <td>${escapeHtml(bundle.namespace)}</td>
+      <td>${escapeHtml(bundle.gitRepo || '—')}</td>
+      <td>${escapeHtml(bundle.commit || '—')}</td>
+      <td><span class="status ${statusClass(bundle.health)}">${escapeHtml(statusText(bundle.health))}</span></td>
+      <td>${escapeHtml(bundle.targets || '—')}</td>
+      <td>${escapeHtml(dateLabel(bundle.lastActivity))}</td>
+      <td><button class="action-button" type="button" data-reconcile="${escapeHtml(bundle.namespace)}/${escapeHtml(bundle.name)}">Reconcile</button></td>
+    </tr>`).join('');
+  elements.bundlesBody.innerHTML = rows;
+  elements.bundleEmpty.hidden = matching.length > 0;
+  elements.bundleEmpty.textContent = state.bundleQuery.trim()
+    ? `No bundles match “${state.bundleQuery.trim()}”.`
+    : 'No bundles found.';
+  const showingFrom = matching.length ? first + 1 : 0;
+  const showingTo = Math.min(first + state.bundlesPerPage, matching.length);
+  elements.bundleCountLabel.textContent = state.bundleQuery.trim()
+    ? `${matching.length} of ${state.bundles.length} bundles`
+    : `${state.bundles.length} bundle${state.bundles.length === 1 ? '' : 's'}`;
+  elements.bundlePagination.hidden = matching.length === 0;
+  elements.bundlePageSummary.textContent = matching.length ? `Showing ${showingFrom}–${showingTo} of ${matching.length}` : '';
+  elements.bundlePageLabel.textContent = `Page ${state.bundlePage} of ${pageCount}`;
+  elements.bundlePagePrevious.disabled = state.bundlePage === 1;
+  elements.bundlePageNext.disabled = state.bundlePage === pageCount;
+  document.querySelectorAll('[data-reconcile]').forEach(button => button.addEventListener('click', () => openReconcile(button.dataset.reconcile)));
+  document.querySelectorAll('[data-bundle-detail]').forEach(button => button.addEventListener('click', () => openBundleDetail(button.dataset.bundleDetail)));
+}
+
+function renderRepositories() {
+  const rows = state.repositories.map(repository => `
+    <tr title="${escapeHtml(repository.message || '')}">
+      <td><button class="gitrepo-name-button" type="button" data-gitrepo-detail="${escapeHtml(repository.namespace)}/${escapeHtml(repository.name)}">${escapeHtml(repository.repo || repository.name)}</button></td>
+      <td>${escapeHtml(repository.branch || '—')}</td>
+      <td>${escapeHtml(repository.syncedCommit || '—')}</td>
+      <td>${escapeHtml(dateLabel(repository.latestActivity))}</td>
+      <td><span class="status ${statusClass(repository.syncState)}">${escapeHtml(statusText(repository.syncState))}</span></td>
+    </tr>`).join('');
+  elements.repositoriesBody.innerHTML = rows;
+  elements.repositoriesEmpty.hidden = state.repositories.length > 0;
+  document.querySelectorAll('[data-gitrepo-detail]').forEach(button => button.addEventListener('click', () => openGitRepoDetail(button.dataset.gitrepoDetail)));
+}
+
+function renderChrome() {
+  const total = state.bundles.length;
+  const healthy = state.bundles.filter(bundle => ['healthy', 'ready', 'current'].includes(String(bundle.health).toLowerCase())).length;
+  const attention = total - healthy;
+  const percent = count => total ? Math.round((count / total) * 100) : 0;
+  elements.attentionCount.textContent = attention;
+  elements.healthyCount.textContent = healthy;
+  elements.healthyPercent.textContent = `${percent(healthy)}% healthy`;
+  elements.attentionSummaryCount.textContent = attention;
+  elements.attentionPercent.textContent = attention ? `${percent(attention)}% of bundles` : 'All clear';
+  elements.totalCount.textContent = total;
+  elements.repositoryCount.textContent = `${state.repositories.length} Git repositories`;
+  elements.repositoryCountLabel.textContent = `${state.repositories.length} repositor${state.repositories.length === 1 ? 'y' : 'ies'}`;
+  const connection = state.health.mode === 'kubeconfig' ? 'Kubernetes · kubeconfig'
+    : state.health.mode === 'in-cluster' ? 'Kubernetes · in-cluster'
+      : state.health.mode === 'direct' ? 'Live Fleet · direct API'
+        : 'Demo Fleet';
+  elements.modeLabel.textContent = state.health.connectionError
+    ? 'Fleet connection unavailable'
+    : state.health.notificationConfigured && !state.health.demo ? `${connection} · ntfy enabled` : connection;
+  elements.notificationDetail.textContent = state.health.demo
+    ? 'Demo mode simulates an ntfy notification for every manual reconcile.'
+    : state.health.notificationConfigured
+      ? 'Every manual reconcile posts to the configured ntfy channel.'
+      : 'ntfy is not configured yet; reconciles will run without delivery notifications.';
+}
+
+function openReconcile(id) {
+  const [namespace, name] = id.split('/');
+  state.selectedBundle = state.bundles.find(bundle => bundle.namespace === namespace && bundle.name === name);
+  if (!state.selectedBundle) return;
+  const bundle = state.selectedBundle;
+  elements.summary.innerHTML = [
+    ['Bundle', `${bundle.namespace}/${bundle.name}`],
+    ['GitRepo', bundle.gitRepo || '—'],
+    ['Commit', bundle.commit || '—'],
+    ['Targets', bundle.targets || '—'],
+  ].map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`).join('');
+  elements.modalRoot.hidden = false;
+  elements.confirm.focus();
+}
+
+function closeModal() {
+  elements.modalRoot.hidden = true;
+  state.selectedBundle = null;
+}
+
+async function openBundleDetail(id) {
+  const [namespace, name] = id.split('/');
+  const listItem = state.bundles.find(bundle => bundle.namespace === namespace && bundle.name === name);
+  if (!listItem) return;
+  state.detailBundle = listItem;
+  elements.detailTitle.textContent = name;
+  elements.detailNamespace.textContent = namespace;
+  elements.detailLoading.hidden = false;
+  elements.detailLoading.textContent = 'Loading latest Fleet status…';
+  elements.detailContent.hidden = true;
+  elements.detailRoot.hidden = false;
+  try {
+    const detail = await api(`/api/bundles/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}`);
+    state.detailBundle = detail;
+    renderBundleDetail(detail);
+    elements.detailLoading.hidden = true;
+    elements.detailContent.hidden = false;
+    elements.detailReconcile.focus();
+  } catch (error) {
+    elements.detailLoading.textContent = error.message;
+    toast(`Could not load ${name} detail: ${error.message}`, 'error');
+  }
+}
+
+function renderBundleDetail(bundle) {
+  elements.detailTitle.textContent = bundle.name;
+  elements.detailNamespace.textContent = bundle.namespace;
+  elements.detailHealth.className = `status ${statusClass(bundle.health)}`;
+  elements.detailHealth.textContent = statusText(bundle.health);
+  elements.detailState.textContent = bundle.state || 'Unknown';
+  elements.detailOverview.innerHTML = [
+    ['GitRepo', bundle.gitRepo || '—'],
+    ['Commit', bundle.commit || '—'],
+    ['Target clusters', bundle.targets || '—'],
+    ['Last activity', dateLabel(bundle.lastActivity)],
+    ['Force sync', bundle.forceGeneration ?? '—'],
+    ['Observed generation', bundle.observedGeneration ?? '—'],
+    ['Created', dateLabel(bundle.createdAt)],
+    ['Resource version', bundle.resourceVersion || '—'],
+  ].map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd title="${escapeHtml(value)}">${escapeHtml(value)}</dd>`).join('');
+  const summary = bundle.summary || {};
+  elements.detailSummary.innerHTML = [
+    ['Ready', summary.ready],
+    ['Desired', summary.desiredReady],
+    ['Out of sync', summary.outOfSync],
+    ['Modified', summary.modified],
+    ['Waiting', summary.waitApplied],
+    ['Errors', (summary.errApplied || 0) + (summary.notReady || 0)],
+  ].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value ?? 0)}</strong></div>`).join('');
+  elements.detailConditions.innerHTML = renderConditions(bundle.conditions);
+}
+
+function renderConditions(conditions = []) {
+  return conditions.length ? conditions.map(condition => {
+    const kind = String(condition.status).toLowerCase() === 'true' ? 'healthy' : String(condition.status).toLowerCase() === 'false' ? 'error' : 'warning';
+    const note = [condition.reason, condition.message].filter(Boolean).join(' · ');
+    return `<article class="condition-row ${kind}"><header><span>${escapeHtml(condition.type || 'Condition')}</span><span>${escapeHtml(condition.status || 'Unknown')}</span></header>${note ? `<p>${escapeHtml(note)}</p>` : ''}${condition.lastUpdated ? `<p>${escapeHtml(dateLabel(condition.lastUpdated))}</p>` : ''}</article>`;
+  }).join('') : '<div class="empty-state">No Fleet conditions reported.</div>';
+}
+
+function closeDetail() {
+  elements.detailRoot.hidden = true;
+  state.detailBundle = null;
+}
+
+async function openGitRepoDetail(id) {
+  const [namespace, name] = id.split('/');
+  const listItem = state.repositories.find(repo => repo.namespace === namespace && repo.name === name);
+  if (!listItem) return;
+  state.detailGitRepo = listItem;
+  elements.gitRepoDetailTitle.textContent = name;
+  elements.gitRepoDetailNamespace.textContent = namespace;
+  elements.gitRepoDetailLoading.hidden = false;
+  elements.gitRepoDetailLoading.textContent = 'Loading latest Fleet status…';
+  elements.gitRepoDetailContent.hidden = true;
+  elements.gitRepoDetailRoot.hidden = false;
+  try {
+    const detail = await api(`/api/gitrepos/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}`);
+    state.detailGitRepo = detail;
+    renderGitRepoDetail(detail);
+    elements.gitRepoDetailLoading.hidden = true;
+    elements.gitRepoDetailContent.hidden = false;
+  } catch (error) {
+    elements.gitRepoDetailLoading.textContent = error.message;
+    toast(`Could not load ${name} detail: ${error.message}`, 'error');
+  }
+}
+
+function renderGitRepoDetail(repo) {
+  elements.gitRepoDetailTitle.textContent = repo.name;
+  elements.gitRepoDetailNamespace.textContent = `${repo.namespace} / ${repo.name}`;
+  elements.gitRepoDetailHealth.className = `status ${statusClass(repo.syncState)}`;
+  elements.gitRepoDetailHealth.textContent = statusText(repo.syncState);
+  elements.gitRepoDetailState.textContent = repo.gitJobStatus || repo.syncState || 'Unknown';
+  elements.gitRepoDetailOverview.innerHTML = [
+    ['Repository', repo.repo || '—'],
+    ['Branch', repo.branch || '—'],
+    ['Revision', repo.revision || '—'],
+    ['Paths', (repo.paths || []).join(', ') || '—'],
+    ['Polling interval', repo.pollingInterval || '—'],
+    ['Image scan interval', repo.imageScanInterval || '—'],
+    ['Synced commit', repo.syncedCommit || '—'],
+    ['Webhook commit', repo.webhookCommit || '—'],
+    ['Polling commit', repo.pollingCommit || '—'],
+    ['Last poll', dateLabel(repo.lastPollingTriggered)],
+    ['Last webhook', dateLabel(repo.lastWebhookTime)],
+    ['Last image scan', dateLabel(repo.lastSyncedImageScanTime)],
+    ['Ready deployments', repo.readyBundleDeployments || '—'],
+    ['Observed generation', repo.observedGeneration ?? '—'],
+    ['Created', dateLabel(repo.createdAt)],
+    ['Resource version', repo.resourceVersion || '—'],
+  ].map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd title="${escapeHtml(value)}">${escapeHtml(value)}</dd>`).join('');
+  const counts = repo.resourceCounts || {};
+  elements.gitRepoDetailSummary.innerHTML = [
+    ['Ready', counts.ready],
+    ['Desired', counts.desiredReady],
+    ['Waiting', counts.waitApplied],
+    ['Not ready', counts.notReady],
+    ['Missing', counts.missing],
+    ['Modified', counts.modified],
+  ].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value ?? 0)}</strong></div>`).join('');
+  elements.gitRepoDetailConditions.innerHTML = renderConditions(repo.conditions);
+}
+
+function closeGitRepoDetail() {
+  elements.gitRepoDetailRoot.hidden = true;
+  state.detailGitRepo = null;
+}
+
+function toast(message, kind = 'success') {
+  const item = document.createElement('div');
+  item.className = `toast ${kind}`;
+  item.textContent = message;
+  elements.toastRegion.append(item);
+  window.setTimeout(() => item.remove(), 5200);
+}
+
+async function loadData({ quiet = false } = {}) {
+  if (state.isRefreshing) return;
+  state.isRefreshing = true;
+  try {
+    const [health, bundles, repositories] = await Promise.all([api('/api/health'), api('/api/bundles'), api('/api/gitrepos')]);
+    state.health = health;
+    state.bundles = bundles.items || [];
+    state.bundlePage = 1;
+    state.repositories = repositories.items || [];
+    renderBundles(); renderRepositories(); renderChrome();
+    if (!quiet) toast('Fleet data refreshed.');
+  } catch (error) {
+    toast(error.message, 'error');
+  } finally {
+    state.isRefreshing = false;
+    scheduleAutoRefresh();
+  }
+}
+
+async function confirmReconcile() {
+  const bundle = state.selectedBundle;
+  if (!bundle) return;
+  elements.confirm.disabled = true;
+  elements.confirm.textContent = 'Reconciling…';
+  try {
+    const result = await api(`/api/bundles/${encodeURIComponent(bundle.namespace)}/${encodeURIComponent(bundle.name)}/reconcile`, { method: 'POST' });
+    closeModal();
+    const suffix = result.notification === 'sent' ? ' ntfy notified.' : result.notification === 'simulated' ? ' Demo ntfy notification queued.' : result.notification === 'failed' ? ' Reconcile started, but ntfy delivery failed.' : ' Reconcile started; ntfy is not configured.';
+    toast(`${bundle.name} reconcile requested (generation ${result.generation}).${suffix}`, result.notification === 'failed' ? 'warning' : 'success');
+    await loadData({ quiet: true });
+  } catch (error) {
+    toast(error.message, 'error');
+  } finally {
+    elements.confirm.disabled = false;
+    elements.confirm.textContent = 'Reconcile';
+  }
+}
+
+elements.confirm.addEventListener('click', confirmReconcile);
+elements.refresh.addEventListener('click', () => loadData());
+elements.refreshInterval.value = String(state.refreshIntervalSeconds);
+elements.refreshInterval.addEventListener('change', event => {
+  const seconds = Number(event.target.value);
+  state.refreshIntervalSeconds = refreshIntervals.includes(seconds) ? seconds : 15;
+  window.localStorage.setItem('fleet-webui.refreshIntervalSeconds', String(state.refreshIntervalSeconds));
+  scheduleAutoRefresh();
+  toast(state.refreshIntervalSeconds ? `Auto refresh set to every ${refreshIntervalLabel(state.refreshIntervalSeconds)}.` : 'Auto refresh turned off.');
+});
+elements.bundleSearch.addEventListener('input', event => {
+  state.bundleQuery = event.target.value;
+  state.bundlePage = 1;
+  renderBundles();
+});
+elements.bundlePagePrevious.addEventListener('click', () => {
+  if (state.bundlePage <= 1) return;
+  state.bundlePage -= 1;
+  renderBundles();
+});
+elements.bundlePageNext.addEventListener('click', () => {
+  const pageCount = Math.max(1, Math.ceil(matchingBundles().length / state.bundlesPerPage));
+  if (state.bundlePage >= pageCount) return;
+  state.bundlePage += 1;
+  renderBundles();
+});
+document.querySelectorAll('[data-close-modal]').forEach(element => element.addEventListener('click', closeModal));
+document.querySelectorAll('[data-close-detail]').forEach(element => element.addEventListener('click', closeDetail));
+document.querySelectorAll('[data-close-gitrepo-detail]').forEach(element => element.addEventListener('click', closeGitRepoDetail));
+elements.detailReconcile.addEventListener('click', () => {
+  const bundle = state.detailBundle;
+  if (!bundle) return;
+  closeDetail();
+  openReconcile(`${bundle.namespace}/${bundle.name}`);
+});
+window.addEventListener('keydown', event => {
+  if (event.key !== 'Escape') return;
+  if (!elements.modalRoot.hidden) closeModal();
+  else if (!elements.detailRoot.hidden) closeDetail();
+  else if (!elements.gitRepoDetailRoot.hidden) closeGitRepoDetail();
+});
+
+loadData({ quiet: true });

@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fleet-webui
+  namespace: cattle-fleet-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: fleet-webui
+rules:
+  - apiGroups: ["fleet.cattle.io"]
+    resources: ["bundles", "gitrepos"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["fleet.cattle.io"]
+    resources: ["bundles"]
+    verbs: ["patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: fleet-webui
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: fleet-webui
+subjects:
+  - kind: ServiceAccount
+    name: fleet-webui
+    namespace: cattle-fleet-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fleet-webui
+  namespace: cattle-fleet-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fleet-webui
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fleet-webui
+    spec:
+      serviceAccountName: fleet-webui
+      containers:
+        - name: fleet-webui
+          image: ghcr.io/replace-me/fleet-webui:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: FLEET_CONNECTION_MODE
+              value: in-cluster
+            - name: NTFY_BASE_URL
+              value: https://ntfy.example.com
+            - name: NTFY_TOPIC
+              value: fleet-reconcile-REPLACE_WITH_RANDOM_TOPIC
+            - name: NTFY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: fleet-webui-ntfy
+                  key: token
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fleet-webui
+  namespace: cattle-fleet-system
+spec:
+  selector:
+    app.kubernetes.io/name: fleet-webui
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

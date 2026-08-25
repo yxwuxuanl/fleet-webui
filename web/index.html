@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>Fleet Console</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Primary navigation">
+        <a class="brand-lockup" href="#bundles" aria-label="Fleet Console home">
+          <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 8.5h22l-2.3 10.7a4 4 0 0 1-3.9 3.2H11.2a4 4 0 0 1-3.9-3.2L5 8.5Z"/><path d="M10 23.2v3.3M22 23.2v3.3M12.3 12.3h.1M19.6 12.3h.1"/></svg>
+          <span>fleet</span>
+        </a>
+        <div class="nav-heading">GitOps</div>
+        <nav class="icon-nav">
+          <a href="#bundles" class="nav-item" aria-label="Overview"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg><span>Overview</span></a>
+          <a href="#bundles" class="nav-item active" aria-label="Bundles"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.4v9.2L12 21l-8-4.4V7.4L12 3Z"/><path d="m4 7.4 8 4.4 8-4.4M12 11.8V21"/></svg><span>Bundles</span></a>
+          <a href="#git-repositories" class="nav-item" aria-label="Git repositories"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="5.5" r="2.2"/><circle cx="18" cy="18.5" r="2.2"/><circle cx="6" cy="18.5" r="2.2"/><path d="M6 7.7v8.6M8.2 18.5h7.6a2.2 2.2 0 0 0 2.2-2.2V7.7"/></svg><span>Git repositories</span></a>
+          <a href="#settings" class="nav-item" aria-label="API connections"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 6-5 6 5 6M16 6l5 6-5 6M14 4l-4 16"/></svg><span>API connections</span></a>
+        </nav>
+        <nav class="icon-nav lower-nav" aria-label="Secondary navigation">
+          <a href="#settings" class="nav-item" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.1 2.1-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5v.2h-3v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1-2.1-2.1.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H5.3v-3h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1 2.1-2.1.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5v-.2h3v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1 2.1 2.1-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.2v3h-.2a1.7 1.7 0 0 0-1.4 1Z"/></svg><span>Settings</span></a>
+          <a href="https://fleet.rancher.io/" class="nav-item" aria-label="Fleet documentation" target="_blank" rel="noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.8 9a2.5 2.5 0 1 1 4.1 1.9c-1.2 1-1.9 1.4-1.9 3M12 17.1h.01"/></svg><span>Documentation</span></a>
+        </nav>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <button class="workspace-selector" type="button" aria-label="Selected workspace: all workspaces"><span class="workspace-icon">⌘</span><span>All workspaces</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg></button>
+          <div class="topbar-spacer"></div>
+          <button class="attention" type="button" aria-label="Bundles needing attention">
+            <span class="bell"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><span id="attention-count" class="alert-count">0</span></span>
+            <span>Alerts</span>
+          </button>
+          <label class="refresh-interval-control" for="refresh-interval" title="Automatic refresh interval">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.2"></circle><path d="M12 7.4v4.9l3.3 2"></path></svg>
+            <span class="auto-refresh-label">Auto</span>
+            <select id="refresh-interval" aria-label="Automatic refresh interval">
+              <option value="15">15 sec</option>
+              <option value="30">30 sec</option>
+              <option value="60">1 min</option>
+              <option value="300">5 min</option>
+              <option value="0">Off</option>
+            </select>
+          </label>
+          <span id="auto-refresh-status" class="auto-refresh-status" aria-live="polite"></span>
+          <button class="refresh-button" type="button" id="refresh-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.8-4.2L3 9M3 4v5h5M4 13a8 8 0 0 0 14.8 4.2L21 15M21 20v-5h-5"/></svg><span>Refresh</span></button>
+        </header>
+
+        <section class="content-section" id="bundles" aria-labelledby="bundles-title">
+          <div class="page-intro">
+            <div><p class="eyebrow">GitOps</p><h1 id="bundles-title">Deployment status</h1><p>Health and sync state of Fleet bundles across your clusters.</p></div>
+            <span id="mode-label" class="mode-label"></span>
+          </div>
+
+          <div class="summary-grid" aria-label="Bundle status summary">
+            <article class="summary-card healthy-card"><span class="summary-icon">✓</span><div><span>Healthy bundles</span><strong id="healthy-count">—</strong></div><small id="healthy-percent">—</small></article>
+            <article class="summary-card warning-card"><span class="summary-icon">!</span><div><span>Needs attention</span><strong id="attention-summary-count">—</strong></div><small id="attention-percent">—</small></article>
+            <article class="summary-card total-card"><span class="summary-icon">◇</span><div><span>Total bundles</span><strong id="total-count">—</strong></div><small id="repository-count">—</small></article>
+          </div>
+
+          <section class="table-panel" aria-labelledby="bundle-table-title">
+            <div class="section-heading">
+              <div><h2 id="bundle-table-title">Bundles</h2><span>Current deployment health</span></div>
+              <div class="bundle-tools">
+                <label class="bundle-search" for="bundle-search">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="5.7"></circle><path d="m15.1 15.1 4.4 4.4"></path></svg>
+                  <span class="visually-hidden">Search bundles</span>
+                  <input id="bundle-search" type="search" placeholder="Search bundles" autocomplete="off" />
+                </label>
+                <span id="bundle-count-label" class="table-count"></span>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table bundle-table">
+                <thead><tr><th>Bundle</th><th>Workspace</th><th>GitRepo</th><th>Commit</th><th>Health</th><th>Targets</th><th>Last activity</th><th class="action-head">Action</th></tr></thead>
+                <tbody id="bundles-body"></tbody>
+              </table>
+              <div id="bundle-empty" class="empty-state" hidden>No bundles found.</div>
+            </div>
+            <nav id="bundle-pagination" class="pagination" aria-label="Bundle pagination" hidden>
+              <span id="bundle-page-summary" class="page-summary" aria-live="polite"></span>
+              <div class="page-controls">
+                <button id="bundle-page-previous" type="button" class="page-button" aria-label="Previous bundle page">Previous</button>
+                <span id="bundle-page-label" class="page-label"></span>
+                <button id="bundle-page-next" type="button" class="page-button" aria-label="Next bundle page">Next</button>
+              </div>
+            </nav>
+          </section>
+        </section>
+
+        <section class="content-section repositories-section" id="git-repositories" aria-labelledby="git-repositories-title">
+          <section class="table-panel">
+            <div class="section-heading"><div><h2 id="git-repositories-title">Git repositories</h2><span>Latest observed commit and update time</span></div><span id="repository-count-label" class="table-count"></span></div>
+            <div class="table-wrap">
+              <table class="data-table repository-table">
+                <thead><tr><th>Repository</th><th>Branch</th><th>Synced commit</th><th>Latest activity</th><th>Sync state</th></tr></thead>
+                <tbody id="repositories-body"></tbody>
+              </table>
+              <div id="repositories-empty" class="empty-state" hidden>No Git repositories found.</div>
+            </div>
+          </section>
+          <aside class="ntfy-note" id="settings"><span class="ntfy-icon">♧</span><div><strong>Reconcile notifications</strong><p id="notification-detail">Manual bundle reconciles are sent to the configured ntfy channel.</p></div><a href="https://docs.ntfy.sh/publish/" target="_blank" rel="noreferrer">ntfy docs ↗</a></aside>
+        </section>
+      </main>
+    </div>
+
+    <div id="modal-root" class="modal-root" hidden>
+      <div class="modal-backdrop" data-close-modal></div>
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-description">
+        <button type="button" class="modal-close" aria-label="Close" data-close-modal><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+        <div class="modal-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.8-4.2L3 9M3 4v5h5M4 13a8 8 0 0 0 14.8 4.2L21 15M21 20v-5h-5"/></svg></div>
+        <h2 id="modal-title">Reconcile bundle?</h2>
+        <p id="modal-description">Fleet will redeploy this bundle to its configured targets.</p>
+        <dl id="reconcile-summary" class="reconcile-summary"></dl>
+        <p class="modal-note">A notification is sent to the configured ntfy channel after Fleet accepts this request.</p>
+        <div class="modal-actions"><button type="button" class="button secondary" data-close-modal>Cancel</button><button type="button" class="button primary" id="confirm-reconcile">Reconcile</button></div>
+      </section>
+    </div>
+
+    <div id="detail-root" class="detail-root" hidden>
+      <div class="detail-backdrop" data-close-detail></div>
+      <aside class="detail-drawer" role="dialog" aria-modal="true" aria-labelledby="detail-title">
+        <header class="detail-header">
+          <div><p class="detail-kicker">Bundle detail</p><h2 id="detail-title">Loading…</h2><p id="detail-namespace" class="detail-namespace"></p></div>
+          <button type="button" class="modal-close" aria-label="Close bundle detail" data-close-detail><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+        </header>
+        <div id="detail-loading" class="detail-loading">Loading latest Fleet status…</div>
+        <div id="detail-content" class="detail-content" hidden>
+          <section class="detail-health"><span id="detail-health" class="status"></span><span id="detail-state" class="detail-state"></span></section>
+          <dl id="detail-overview" class="detail-overview"></dl>
+          <section class="detail-section"><h3>Apply summary</h3><div id="detail-summary" class="summary-list"></div></section>
+          <section class="detail-section"><h3>Conditions</h3><div id="detail-conditions" class="condition-list"></div></section>
+        </div>
+        <footer class="detail-actions"><button type="button" class="button secondary" data-close-detail>Close</button><button type="button" class="button primary" id="detail-reconcile">Reconcile</button></footer>
+      </aside>
+    </div>
+
+    <div id="gitrepo-detail-root" class="detail-root" hidden>
+      <div class="detail-backdrop" data-close-gitrepo-detail></div>
+      <aside class="detail-drawer" role="dialog" aria-modal="true" aria-labelledby="gitrepo-detail-title">
+        <header class="detail-header">
+          <div><p class="detail-kicker">Git repository detail</p><h2 id="gitrepo-detail-title">Loading…</h2><p id="gitrepo-detail-namespace" class="detail-namespace"></p></div>
+          <button type="button" class="modal-close" aria-label="Close Git repository detail" data-close-gitrepo-detail><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+        </header>
+        <div id="gitrepo-detail-loading" class="detail-loading">Loading latest Fleet status…</div>
+        <div id="gitrepo-detail-content" class="detail-content" hidden>
+          <section class="detail-health"><span id="gitrepo-detail-health" class="status"></span><span id="gitrepo-detail-state" class="detail-state"></span></section>
+          <dl id="gitrepo-detail-overview" class="detail-overview"></dl>
+          <section class="detail-section"><h3>Resource summary</h3><div id="gitrepo-detail-summary" class="summary-list"></div></section>
+          <section class="detail-section"><h3>Conditions</h3><div id="gitrepo-detail-conditions" class="condition-list"></div></section>
+        </div>
+        <footer class="detail-actions"><button type="button" class="button secondary" data-close-gitrepo-detail>Close</button></footer>
+      </aside>
+    </div>
+
+    <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>

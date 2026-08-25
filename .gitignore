@@ -1,0 +1,11 @@
+# Local configuration and secrets
+.env
+.env.local
+
+# Editor and operating-system files
+.idea/
+.DS_Store
+
+# Go build and test output
+fleet-webui
+coverage.out
