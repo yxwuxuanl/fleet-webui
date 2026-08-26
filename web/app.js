@@ -1,7 +1,19 @@
 const refreshIntervals = [0, 15, 30, 60, 300];
-const savedRefreshInterval = Number(window.localStorage.getItem('fleet-webui.refreshIntervalSeconds'));
+const savedRefreshIntervalValue = window.localStorage.getItem('fleet-webui.refreshIntervalSeconds');
+const savedRefreshInterval = savedRefreshIntervalValue === null ? undefined : Number(savedRefreshIntervalValue);
 const browserNotificationStorageKey = 'fleet-webui.browserNotificationsEnabled';
 const savedBrowserNotificationsEnabled = window.localStorage.getItem(browserNotificationStorageKey) === 'true';
+const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+const browserDateTimeFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: browserTimeZone,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23',
+});
 
 const state = {
   bundles: [],
@@ -14,7 +26,7 @@ const state = {
   nextRefreshAt: null,
   isRefreshing: false,
   repositories: [],
-  health: { demo: false, mode: 'demo', notificationConfigured: false, connectionError: '' },
+  health: { mode: 'unconfigured', notificationConfigured: false, connectionError: '' },
   selectedBundle: null,
   detailBundle: null,
   detailGitRepo: null,
@@ -90,7 +102,10 @@ function dateLabel(value) {
   if (!value) return '—';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.valueOf())) return value;
-  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(parsed);
+  const parts = Object.fromEntries(browserDateTimeFormatter.formatToParts(parsed)
+    .filter(part => part.type !== 'literal')
+    .map(part => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
 }
 
 function statusClass(value = '') {
@@ -292,13 +307,11 @@ function renderChrome() {
   const connection = state.health.mode === 'kubeconfig' ? 'Kubernetes · kubeconfig'
     : state.health.mode === 'in-cluster' ? 'Kubernetes · in-cluster'
       : state.health.mode === 'direct' ? 'Live Fleet · direct API'
-        : 'Demo Fleet';
+        : 'Fleet connection unavailable';
   elements.modeLabel.textContent = state.health.connectionError
     ? 'Fleet connection unavailable'
-    : state.health.notificationConfigured && !state.health.demo ? `${connection} · ntfy enabled` : connection;
-  elements.notificationDetail.textContent = state.health.demo
-    ? 'Demo mode simulates an ntfy notification for every manual reconcile.'
-    : state.health.notificationConfigured
+    : state.health.notificationConfigured ? `${connection} · ntfy enabled` : connection;
+  elements.notificationDetail.textContent = state.health.notificationConfigured
       ? 'Every manual reconcile posts to the configured ntfy channel.'
       : 'ntfy is not configured yet; reconciles will run without delivery notifications.';
   renderBrowserNotifications();
@@ -488,7 +501,7 @@ async function confirmReconcile() {
   try {
     const result = await api(`/api/bundles/${encodeURIComponent(bundle.namespace)}/${encodeURIComponent(bundle.name)}/reconcile`, { method: 'POST' });
     closeModal();
-    const suffix = result.notification === 'sent' ? ' ntfy notified.' : result.notification === 'simulated' ? ' Demo ntfy notification queued.' : result.notification === 'failed' ? ' Reconcile started, but ntfy delivery failed.' : ' Reconcile started; ntfy is not configured.';
+    const suffix = result.notification === 'sent' ? ' ntfy notified.' : result.notification === 'failed' ? ' Reconcile started, but ntfy delivery failed.' : ' Reconcile started; ntfy is not configured.';
     toast(`${bundle.name} reconcile requested (generation ${result.generation}).${suffix}`, result.notification === 'failed' ? 'warning' : 'success');
     const notificationIssue = result.notification === 'failed';
     notifyBrowser(

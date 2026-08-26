@@ -28,13 +28,14 @@ type FleetClient struct {
 func newFleetClient(config Config) *FleetClient {
 	connectionMode := resolveConnectionMode(config)
 	client := &FleetClient{config: config, connectionMode: connectionMode, apiMode: config.FleetAPIMode}
-	if connectionMode == "demo" {
+	if connectionMode == "unconfigured" {
+		client.initialization = errors.New("no Fleet connection detected; run inside Kubernetes, configure FLEET_API_BASE_URL, or provide a kubeconfig")
 		return client
 	}
 
 	if connectionMode == "direct" {
 		if config.FleetAPIBaseURL == "" {
-			client.initialization = errors.New("FLEET_API_BASE_URL is required when FLEET_CONNECTION_MODE=direct")
+			client.initialization = errors.New("FLEET_API_BASE_URL is required for direct Fleet API access")
 			return client
 		}
 		client.baseURL = config.FleetAPIBaseURL
@@ -74,11 +75,11 @@ func directHTTPClient(config Config) *http.Client {
 }
 
 func resolveConnectionMode(config Config) string {
-	if config.FleetConnectionMode != "auto" {
-		return config.FleetConnectionMode
-	}
 	if config.FleetAPIBaseURL != "" {
 		return "direct"
+	}
+	if inClusterEnvironment() {
+		return "in-cluster"
 	}
 	if config.KubeconfigPath != "" || strings.TrimSpace(os.Getenv("KUBECONFIG")) != "" {
 		return "kubeconfig"
@@ -86,10 +87,12 @@ func resolveConnectionMode(config Config) string {
 	if _, err := os.Stat(clientcmd.RecommendedHomeFile); err == nil {
 		return "kubeconfig"
 	}
-	if os.Getenv("KUBERNETES_SERVICE_HOST") != "" && os.Getenv("KUBERNETES_SERVICE_PORT") != "" {
-		return "in-cluster"
-	}
-	return "demo"
+	return "unconfigured"
+}
+
+func inClusterEnvironment() bool {
+	return strings.TrimSpace(os.Getenv("KUBERNETES_SERVICE_HOST")) != "" &&
+		strings.TrimSpace(os.Getenv("KUBERNETES_SERVICE_PORT")) != ""
 }
 
 func restConfigFromKubeconfig(config Config) (*rest.Config, error) {
@@ -100,8 +103,6 @@ func restConfigFromKubeconfig(config Config) (*rest.Config, error) {
 	overrides := &clientcmd.ConfigOverrides{CurrentContext: config.KubeContext}
 	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, overrides).ClientConfig()
 }
-
-func (c *FleetClient) demoMode() bool { return c.connectionMode == "demo" }
 
 func (c *FleetClient) ready() error { return c.initialization }
 

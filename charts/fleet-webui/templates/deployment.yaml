@@ -44,8 +44,6 @@ spec:
           env:
             - name: LISTEN_ADDR
               value: ":8080"
-            - name: FLEET_CONNECTION_MODE
-              value: {{ .Values.fleet.connectionMode | quote }}
             - name: REQUEST_TIMEOUT_SECONDS
               value: {{ .Values.fleet.requestTimeoutSeconds | quote }}
             {{- with .Values.appBaseURL }}

@@ -13,8 +13,74 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
-func TestDemoAPIListsAndReconcilesBundle(t *testing.T) {
-	app := newApp(Config{FleetConnectionMode: "demo", FleetAPIMode: "steve", RequestTimeout: time.Second})
+func TestAPIListsAndReconcilesBundle(t *testing.T) {
+	updatedAt := time.Now().UTC()
+	sourceBundle := Bundle{Metadata: Metadata{
+		Name:              "platform-base",
+		Namespace:         "platform",
+		ResourceVersion:   "7",
+		CreationTimestamp: updatedAt.Add(-time.Hour),
+		Labels: map[string]string{
+			"fleet.cattle.io/repo-name": "platform-configs",
+			"fleet.cattle.io/commit":    "8f3a1b2",
+		},
+	}}
+	sourceBundle.Spec.ForceSyncGeneration = 6
+	sourceBundle.Status.Display.State = "Ready"
+	sourceBundle.Status.Display.ReadyClusters = "1 / 1"
+	sourceBundle.Status.Summary.Ready = 1
+	sourceBundle.Status.Summary.DesiredReady = 1
+	sourceBundle.Status.Conditions = []Condition{{Type: "Ready", Status: "True", LastUpdateTime: &updatedAt}}
+
+	gitRepo := GitRepo{Metadata: Metadata{
+		Name:              "platform-configs",
+		Namespace:         "platform",
+		ResourceVersion:   "8",
+		CreationTimestamp: updatedAt.Add(-time.Hour),
+	}}
+	gitRepo.Spec.Repo = "https://github.com/acme/platform-configs.git"
+	gitRepo.Spec.Branch = "main"
+	gitRepo.Status.Commit = "8f3a1b2"
+	gitRepo.Status.Display.State = "Current"
+	gitRepo.Status.Display.ReadyBundleDeployments = "1 / 1"
+	gitRepo.Status.ResourceCounts.Ready = 1
+	gitRepo.Status.ResourceCounts.DesiredReady = 1
+	gitRepo.Status.Conditions = []Condition{{Type: "Ready", Status: "True", LastUpdateTime: &updatedAt}}
+
+	fleetAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method + " " + r.URL.Path {
+		case http.MethodGet + " /apis/fleet.cattle.io/v1alpha1/bundles":
+			writeJSON(w, http.StatusOK, map[string]any{"items": []Bundle{sourceBundle}})
+		case http.MethodGet + " /apis/fleet.cattle.io/v1alpha1/gitrepos":
+			writeJSON(w, http.StatusOK, map[string]any{"items": []GitRepo{gitRepo}})
+		case http.MethodGet + " /apis/fleet.cattle.io/v1alpha1/namespaces/platform/bundles/platform-base":
+			writeJSON(w, http.StatusOK, sourceBundle)
+		case http.MethodPatch + " /apis/fleet.cattle.io/v1alpha1/namespaces/platform/bundles/platform-base":
+			var patch struct {
+				Metadata struct {
+					ResourceVersion string `json:"resourceVersion"`
+				} `json:"metadata"`
+				Spec struct {
+					ForceSyncGeneration int64 `json:"forceSyncGeneration"`
+				} `json:"spec"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
+				t.Errorf("decode reconcile patch: %v", err)
+			}
+			if patch.Metadata.ResourceVersion != sourceBundle.Metadata.ResourceVersion || patch.Spec.ForceSyncGeneration != sourceBundle.Spec.ForceSyncGeneration+1 {
+				t.Errorf("unexpected reconcile patch: %#v", patch)
+			}
+			writeJSON(w, http.StatusOK, sourceBundle)
+		case http.MethodGet + " /apis/fleet.cattle.io/v1alpha1/namespaces/platform/gitrepos/platform-configs":
+			writeJSON(w, http.StatusOK, gitRepo)
+		default:
+			t.Errorf("unexpected Fleet API request: %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer fleetAPI.Close()
+
+	app := newApp(Config{FleetAPIBaseURL: fleetAPI.URL, FleetAPIMode: "kubernetes", FleetSkipTLS: true, RequestTimeout: time.Second})
 	server := httptest.NewServer(app.routes())
 	defer server.Close()
 
@@ -33,7 +99,7 @@ func TestDemoAPIListsAndReconcilesBundle(t *testing.T) {
 		t.Fatalf("decode bundles: %v", err)
 	}
 	if len(before.Items) == 0 {
-		t.Fatal("expected demo bundles")
+		t.Fatal("expected bundles from the Fleet API")
 	}
 
 	gitReposResponse, err := http.Get(server.URL + "/api/gitrepos")
@@ -48,7 +114,7 @@ func TestDemoAPIListsAndReconcilesBundle(t *testing.T) {
 		t.Fatalf("decode Git repositories: %v", err)
 	}
 	if len(gitRepos.Items) == 0 {
-		t.Fatal("expected demo Git repositories")
+		t.Fatal("expected Git repositories from the Fleet API")
 	}
 	repo := gitRepos.Items[0]
 	gitRepoDetailResponse, err := http.Get(server.URL + "/api/gitrepos/" + repo.Namespace + "/" + repo.Name)
@@ -107,8 +173,8 @@ func TestDemoAPIListsAndReconcilesBundle(t *testing.T) {
 	if result.Generation != bundle.ForceGeneration+1 {
 		t.Fatalf("generation = %d, want %d", result.Generation, bundle.ForceGeneration+1)
 	}
-	if result.Notification != "simulated" {
-		t.Fatalf("notification = %q, want simulated", result.Notification)
+	if result.Notification != "not-configured" {
+		t.Fatalf("notification = %q, want not-configured", result.Notification)
 	}
 }
 
@@ -144,6 +210,8 @@ func TestNotifyReconcileSendsNtfyPayload(t *testing.T) {
 }
 
 func TestKubeconfigConnectionUsesKubernetesAPI(t *testing.T) {
+	t.Setenv("KUBERNETES_SERVICE_HOST", "")
+	t.Setenv("KUBERNETES_SERVICE_PORT", "")
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got, want := r.URL.Path, "/apis/fleet.cattle.io/v1alpha1/bundles"; got != want {
 			t.Errorf("path = %q, want %q", got, want)
@@ -172,7 +240,7 @@ func TestKubeconfigConnectionUsesKubernetesAPI(t *testing.T) {
 		t.Fatalf("write kubeconfig: %v", err)
 	}
 
-	client := newFleetClient(Config{FleetConnectionMode: "kubeconfig", KubeconfigPath: kubeconfigPath, RequestTimeout: time.Second})
+	client := newFleetClient(Config{KubeconfigPath: kubeconfigPath, RequestTimeout: time.Second})
 	if err := client.ready(); err != nil {
 		t.Fatalf("initialize kubeconfig client: %v", err)
 	}
@@ -181,6 +249,16 @@ func TestKubeconfigConnectionUsesKubernetesAPI(t *testing.T) {
 	}
 	if _, err := client.listBundles(context.Background()); err != nil {
 		t.Fatalf("list bundles through kubeconfig: %v", err)
+	}
+}
+
+func TestResolveConnectionModeDetectsInClusterBeforeKubeconfig(t *testing.T) {
+	t.Setenv("KUBERNETES_SERVICE_HOST", "10.43.0.1")
+	t.Setenv("KUBERNETES_SERVICE_PORT", "443")
+	t.Setenv("KUBECONFIG", "/tmp/ignored-when-in-cluster")
+
+	if got := resolveConnectionMode(Config{}); got != "in-cluster" {
+		t.Fatalf("connection mode = %q, want in-cluster", got)
 	}
 }
 

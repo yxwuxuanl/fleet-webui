@@ -8,18 +8,17 @@ A Go-based web console for Rancher Fleet. It lists Bundle and GitRepo status, ca
 go run .
 ```
 
-Open `http://localhost:8080`. With no environment configured, the app runs in demo mode so the entire UI and reconcile flow can be tested safely.
+Open `http://localhost:8080`. Configure a local kubeconfig or direct Fleet API endpoint before opening the console. If no Fleet connection is available, the UI shows a clear connection error instead of sample resources.
 
 ## Connect Rancher Fleet
 
-Use `.env.example` as a deployment template, then export those variables (or inject them through your Deployment) before starting the server.
+Use `.env.example` as a deployment template, then export those variables (or inject them through your Deployment) before starting the server. The application automatically detects a Pod ServiceAccount for in-cluster access; outside a Pod it uses a configured direct API endpoint, then local kubeconfig. If neither is available, the API returns a connection error.
 
 ### Local kubeconfig
 
-`FLEET_CONNECTION_MODE=auto` (the default) loads `$KUBECONFIG` or `~/.kube/config` when present. Set `FLEET_KUBECONFIG` to a specific file and `FLEET_KUBECONTEXT` to select a context. The app uses the kubeconfig's server, CA, client certificates, bearer token, and exec authentication settings; it talks to Fleet through the Kubernetes CRD API.
+Outside a Pod, the application loads `$KUBECONFIG` or `~/.kube/config` when present. Set `FLEET_KUBECONFIG` to a specific file and `FLEET_KUBECONTEXT` to select a context. The app uses the kubeconfig's server, CA, client certificates, bearer token, and exec authentication settings; it talks to Fleet through the Kubernetes CRD API.
 
 ```sh
-export FLEET_CONNECTION_MODE=kubeconfig
 export FLEET_KUBECONFIG="$HOME/.kube/config"
 export FLEET_KUBECONTEXT=your-context # optional
 go run .
@@ -27,13 +26,13 @@ go run .
 
 ### In-cluster
 
-Set `FLEET_CONNECTION_MODE=in-cluster` when running in a Pod. The app then uses the mounted ServiceAccount token and CA at the standard Kubernetes paths. In `auto` mode, this is selected when no local kubeconfig/direct endpoint is configured.
+When running in a Pod, the app detects `KUBERNETES_SERVICE_HOST` and `KUBERNETES_SERVICE_PORT` and uses the mounted ServiceAccount token and CA at the standard Kubernetes paths. No connection-mode environment variable is required.
 
 The included [RBAC manifest](deploy/rbac.yaml) grants the minimum Fleet permissions required by the UI. Bind it only to the namespaces/clusters the console should manage.
 
 ### Direct Rancher API
 
-For a Rancher Steve endpoint, set `FLEET_CONNECTION_MODE=direct`, `FLEET_API_BASE_URL`, and `FLEET_API_TOKEN`. `FLEET_API_MODE=steve` uses Rancher's `/v1` API; use `kubernetes` only when the supplied endpoint points directly at a Kubernetes API server.
+For a Rancher Steve endpoint, set `FLEET_API_BASE_URL` and `FLEET_API_TOKEN`. `FLEET_API_MODE=steve` uses Rancher's `/v1` API; use `kubernetes` only when the supplied endpoint points directly at a Kubernetes API server.
 
 The Fleet identity needs:
 

@@ -50,8 +50,6 @@ spec:
           image: ghcr.io/replace-me/fleet-webui:latest
           imagePullPolicy: IfNotPresent
           env:
-            - name: FLEET_CONNECTION_MODE
-              value: in-cluster
             - name: NTFY_BASE_URL
               value: https://ntfy.example.com
             - name: NTFY_TOPIC

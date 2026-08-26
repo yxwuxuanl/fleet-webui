@@ -12,15 +12,12 @@ import (
 type App struct {
 	config Config
 	fleet  *FleetClient
-	demo   *DemoStore
 	logger *slog.Logger
 }
 
 func newApp(config Config) *App {
-	return &App{config: config, fleet: newFleetClient(config), demo: newDemoStore(), logger: slog.Default()}
+	return &App{config: config, fleet: newFleetClient(config), logger: slog.Default()}
 }
-
-func (a *App) demoMode() bool { return a.fleet.demoMode() }
 
 func (a *App) routes() http.Handler {
 	mux := http.NewServeMux()
@@ -61,7 +58,6 @@ func writeError(w http.ResponseWriter, status int, err error) {
 func (a *App) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"mode":                   a.fleet.connectionMode,
-		"demo":                   a.demoMode(),
 		"connectionError":        errorMessage(a.fleet.ready()),
 		"notificationConfigured": a.config.NtfyBaseURL != "" && a.config.NtfyTopic != "",
 	})
@@ -75,10 +71,6 @@ func errorMessage(err error) string {
 }
 
 func (a *App) handleBundles(w http.ResponseWriter, r *http.Request) {
-	if a.demoMode() {
-		writeJSON(w, http.StatusOK, map[string]any{"items": a.demo.listBundles()})
-		return
-	}
 	items, err := a.fleet.listBundles(r.Context())
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err)
@@ -97,15 +89,6 @@ func (a *App) handleBundleDetail(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, errors.New("namespace and name are required"))
 		return
 	}
-	if a.demoMode() {
-		detail, err := a.demo.bundleDetail(namespace, name)
-		if err != nil {
-			writeError(w, http.StatusNotFound, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, detail)
-		return
-	}
 	bundle, err := a.fleet.getBundle(r.Context(), namespace, name)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err)
@@ -115,10 +98,6 @@ func (a *App) handleBundleDetail(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleGitRepos(w http.ResponseWriter, r *http.Request) {
-	if a.demoMode() {
-		writeJSON(w, http.StatusOK, map[string]any{"items": a.demo.listGitRepos()})
-		return
-	}
 	items, err := a.fleet.listGitRepos(r.Context())
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err)
@@ -135,15 +114,6 @@ func (a *App) handleGitRepoDetail(w http.ResponseWriter, r *http.Request) {
 	namespace, name := r.PathValue("namespace"), r.PathValue("name")
 	if namespace == "" || name == "" {
 		writeError(w, http.StatusBadRequest, errors.New("namespace and name are required"))
-		return
-	}
-	if a.demoMode() {
-		detail, err := a.demo.gitRepoDetail(namespace, name)
-		if err != nil {
-			writeError(w, http.StatusNotFound, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, detail)
 		return
 	}
 	repo, err := a.fleet.getGitRepo(r.Context(), namespace, name)
@@ -170,25 +140,15 @@ func (a *App) handleReconcile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var bundle BundleView
-	var generation int64
-	var err error
-	if a.demoMode() {
-		bundle, generation, err = a.demo.reconcile(namespace, name)
-	} else {
-		var source Bundle
-		source, generation, err = a.fleet.reconcileBundle(r.Context(), namespace, name)
-		bundle = bundleView(source)
-	}
+	source, generation, err := a.fleet.reconcileBundle(r.Context(), namespace, name)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err)
 		return
 	}
+	bundle := bundleView(source)
 
 	notification := "not-configured"
-	if a.demoMode() {
-		notification = "simulated"
-	} else if a.config.NtfyBaseURL != "" && a.config.NtfyTopic != "" {
+	if a.config.NtfyBaseURL != "" && a.config.NtfyTopic != "" {
 		if err := a.notifyReconcile(r.Context(), bundle, generation, requesterFrom(r)); err != nil {
 			a.logger.Error("ntfy notification failed", "bundle", namespace+"/"+name, "error", err)
 			notification = "failed"

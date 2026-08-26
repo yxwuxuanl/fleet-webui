@@ -50,7 +50,6 @@ ingress:
   tls: []
 
 fleet:
-  connectionMode: in-cluster
   requestTimeoutSeconds: 12
 
 ntfy:
