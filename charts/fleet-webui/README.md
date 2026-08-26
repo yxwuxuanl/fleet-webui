@@ -1,6 +1,6 @@
 # fleet-webui Helm chart
 
-Deploys Fleet WebUI using the automatically detected Pod ServiceAccount to access the Fleet CRDs. The default image is `registry.cn-shenzhen.aliyuncs.com/lin2ur/fleet-webui:57086c5c`.
+Deploys Fleet WebUI using the automatically detected Pod ServiceAccount to access the Fleet CRDs. The default image is `registry.cn-shenzhen.aliyuncs.com/lin2ur/fleet-webui:6f05c01`.
 
 ## Install
 
@@ -50,7 +50,7 @@ helm upgrade --install fleet-webui ./charts/fleet-webui \
 | Value | Default | Description |
 | --- | --- | --- |
 | `image.repository` | `registry.cn-shenzhen.aliyuncs.com/lin2ur/fleet-webui` | Container image repository. |
-| `image.tag` | `57086c5c` | Container image tag. |
+| `image.tag` | `6f05c01` | Container image tag. |
 | `rbac.create` | `true` | Create the ClusterRole and ClusterRoleBinding. |
 | `ntfy.enabled` | `false` | Configure the fixed ntfy channel. |
 | `ntfy.existingSecret` | empty | Secret containing `ntfy.tokenKey`. |

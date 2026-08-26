@@ -3,7 +3,7 @@ replicaCount: 1
 image:
   repository: registry.cn-shenzhen.aliyuncs.com/lin2ur/fleet-webui
   pullPolicy: IfNotPresent
-  tag: "57086c5c"
+  tag: "6f05c01"
 
 imagePullSecrets: []
 nameOverride: ""
