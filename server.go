@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"io/fs"
@@ -60,6 +62,8 @@ func (a *App) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"mode":                   a.fleet.connectionMode,
 		"connectionError":        errorMessage(a.fleet.ready()),
 		"notificationConfigured": a.config.NtfyBaseURL != "" && a.config.NtfyTopic != "",
+		"reconcileEnabled":       a.config.ReconcileAuthToken != "",
+		"reconcileAuthRequired":  true,
 	})
 }
 
@@ -124,16 +128,26 @@ func (a *App) handleGitRepoDetail(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, gitRepoDetailView(repo))
 }
 
-func requesterFrom(r *http.Request) string {
-	for _, header := range []string{"X-Remote-User", "X-Forwarded-User", "X-Auth-Request-User"} {
-		if value := strings.TrimSpace(r.Header.Get(header)); value != "" {
-			return value
-		}
+func (a *App) authorizeReconcile(w http.ResponseWriter, r *http.Request) bool {
+	if a.config.ReconcileAuthToken == "" {
+		writeError(w, http.StatusServiceUnavailable, errors.New("manual reconcile is disabled; configure RECONCILE_AUTH_TOKEN on the server"))
+		return false
 	}
-	return "fleet-webui"
+	scheme, token, ok := strings.Cut(strings.TrimSpace(r.Header.Get("Authorization")), " ")
+	providedToken := sha256.Sum256([]byte(strings.TrimSpace(token)))
+	expectedToken := sha256.Sum256([]byte(a.config.ReconcileAuthToken))
+	if !ok || !strings.EqualFold(scheme, "Bearer") || subtle.ConstantTimeCompare(providedToken[:], expectedToken[:]) != 1 {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="fleet-webui"`)
+		writeError(w, http.StatusUnauthorized, errors.New("a valid reconcile token is required"))
+		return false
+	}
+	return true
 }
 
 func (a *App) handleReconcile(w http.ResponseWriter, r *http.Request) {
+	if !a.authorizeReconcile(w, r) {
+		return
+	}
 	namespace, name := r.PathValue("namespace"), r.PathValue("name")
 	if namespace == "" || name == "" {
 		writeError(w, http.StatusBadRequest, errors.New("namespace and name are required"))
@@ -149,7 +163,7 @@ func (a *App) handleReconcile(w http.ResponseWriter, r *http.Request) {
 
 	notification := "not-configured"
 	if a.config.NtfyBaseURL != "" && a.config.NtfyTopic != "" {
-		if err := a.notifyReconcile(r.Context(), bundle, generation, requesterFrom(r)); err != nil {
+		if err := a.notifyReconcile(r.Context(), bundle, generation, "authenticated client"); err != nil {
 			a.logger.Error("ntfy notification failed", "bundle", namespace+"/"+name, "error", err)
 			notification = "failed"
 		} else {

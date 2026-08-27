@@ -259,16 +259,16 @@ func bundleState(bundle Bundle) string {
 	switch {
 	case summary.ErrApplied > 0:
 		return "ErrApplied"
-	case summary.NotReady > 0:
-		return "NotReady"
-	case summary.OutOfSync > 0:
-		return "OutOfSync"
-	case summary.Modified > 0:
-		return "Modified"
-	case summary.Pending > 0:
-		return "Pending"
 	case summary.WaitApplied > 0:
 		return "WaitApplied"
+	case summary.Modified > 0:
+		return "Modified"
+	case summary.OutOfSync > 0:
+		return "OutOfSync"
+	case summary.Pending > 0:
+		return "Pending"
+	case summary.NotReady > 0:
+		return "NotReady"
 	case summary.DesiredReady > 0 && summary.Ready >= summary.DesiredReady:
 		return "Ready"
 	}
@@ -295,11 +295,14 @@ func gitRepoView(repo GitRepo) GitRepoView {
 	if pending == repo.Status.Commit {
 		pending = ""
 	}
-	state := repo.Status.GitJobStatus
+	state := strings.TrimSpace(repo.Status.Display.State)
+	if state == "" {
+		state = strings.TrimSpace(repo.Status.GitJobStatus)
+	}
 	if state == "" {
 		state = "Unknown"
 	}
-	if pending != "" && strings.EqualFold(state, "Current") {
+	if pending != "" && (strings.EqualFold(state, "Current") || strings.EqualFold(state, "Ready") || strings.EqualFold(state, "Synced")) {
 		state = "Out of sync"
 	}
 	message := ""

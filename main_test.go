@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -80,7 +82,13 @@ func TestAPIListsAndReconcilesBundle(t *testing.T) {
 	}))
 	defer fleetAPI.Close()
 
-	app := newApp(Config{FleetAPIBaseURL: fleetAPI.URL, FleetAPIMode: "kubernetes", FleetSkipTLS: true, RequestTimeout: time.Second})
+	app := newApp(Config{
+		FleetAPIBaseURL:    fleetAPI.URL,
+		FleetAPIMode:       "kubernetes",
+		FleetSkipTLS:       true,
+		ReconcileAuthToken: "reconcile-secret",
+		RequestTimeout:     time.Second,
+	})
 	server := httptest.NewServer(app.routes())
 	defer server.Close()
 
@@ -150,10 +158,24 @@ func TestAPIListsAndReconcilesBundle(t *testing.T) {
 		t.Fatalf("unexpected detail: %#v", detail)
 	}
 
+	unauthorized, err := http.NewRequest(http.MethodPost, server.URL+"/api/bundles/"+bundle.Namespace+"/"+bundle.Name+"/reconcile", nil)
+	if err != nil {
+		t.Fatalf("create unauthorized reconcile request: %v", err)
+	}
+	unauthorizedResponse, err := http.DefaultClient.Do(unauthorized)
+	if err != nil {
+		t.Fatalf("send unauthorized reconcile request: %v", err)
+	}
+	defer unauthorizedResponse.Body.Close()
+	if unauthorizedResponse.StatusCode != http.StatusUnauthorized || unauthorizedResponse.Header.Get("WWW-Authenticate") == "" {
+		t.Fatalf("unauthorized reconcile status = %d, authenticate = %q", unauthorizedResponse.StatusCode, unauthorizedResponse.Header.Get("WWW-Authenticate"))
+	}
+
 	request, err := http.NewRequest(http.MethodPost, server.URL+"/api/bundles/"+bundle.Namespace+"/"+bundle.Name+"/reconcile", nil)
 	if err != nil {
 		t.Fatalf("create reconcile request: %v", err)
 	}
+	request.Header.Set("Authorization", "Bearer reconcile-secret")
 	response, err = http.DefaultClient.Do(request)
 	if err != nil {
 		t.Fatalf("reconcile bundle: %v", err)
@@ -195,6 +217,7 @@ func TestNotifyReconcileSendsNtfyPayload(t *testing.T) {
 		NtfyBaseURL:    server.URL,
 		NtfyTopic:      "fleet-alerts",
 		NtfyToken:      "secret",
+		AppBaseURL:     "https://fleet.example.com/console?source=ntfy",
 		RequestTimeout: time.Second,
 	})
 	bundle := BundleView{Namespace: "platform", Name: "base", GitRepo: "platform-configs", Commit: "abc123"}
@@ -206,6 +229,13 @@ func TestNotifyReconcileSendsNtfyPayload(t *testing.T) {
 	}
 	if received.SequenceID != "reconcile-platform-base-12" {
 		t.Fatalf("sequence ID = %q", received.SequenceID)
+	}
+	click, err := url.Parse(received.Click)
+	if err != nil {
+		t.Fatalf("parse ntfy click URL: %v", err)
+	}
+	if click.Path != "/console" || click.Query().Get("source") != "ntfy" || click.Query().Get("bundle") != "platform/base" {
+		t.Fatalf("unexpected ntfy click URL: %q", received.Click)
 	}
 }
 
@@ -272,5 +302,159 @@ func TestBundleViewDerivesReadyFromSummary(t *testing.T) {
 	view := bundleView(bundle)
 	if view.State != "Ready" || view.Health != "Healthy" {
 		t.Fatalf("bundle view = %#v, want ready and healthy", view)
+	}
+}
+
+func TestReconcileIsReadOnlyWithoutServerToken(t *testing.T) {
+	app := newApp(Config{})
+
+	healthRecorder := httptest.NewRecorder()
+	app.routes().ServeHTTP(healthRecorder, httptest.NewRequest(http.MethodGet, "/api/health", nil))
+	var health struct {
+		ReconcileEnabled bool `json:"reconcileEnabled"`
+	}
+	if err := json.NewDecoder(healthRecorder.Body).Decode(&health); err != nil {
+		t.Fatalf("decode health: %v", err)
+	}
+	if health.ReconcileEnabled {
+		t.Fatal("reconcile should be disabled without RECONCILE_AUTH_TOKEN")
+	}
+
+	reconcileRecorder := httptest.NewRecorder()
+	app.routes().ServeHTTP(reconcileRecorder, httptest.NewRequest(http.MethodPost, "/api/bundles/fleet-local/example/reconcile", nil))
+	if reconcileRecorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("reconcile status = %d, want %d", reconcileRecorder.Code, http.StatusServiceUnavailable)
+	}
+}
+
+func TestBundleStateUsesFleetPriority(t *testing.T) {
+	var bundle Bundle
+	bundle.Status.Summary.NotReady = 1
+	bundle.Status.Summary.Pending = 1
+	bundle.Status.Summary.OutOfSync = 1
+	bundle.Status.Summary.Modified = 1
+	bundle.Status.Summary.WaitApplied = 1
+	if got := bundleState(bundle); got != "WaitApplied" {
+		t.Fatalf("state = %q, want WaitApplied", got)
+	}
+	bundle.Status.Summary.ErrApplied = 1
+	if got := bundleState(bundle); got != "ErrApplied" {
+		t.Fatalf("state = %q, want ErrApplied", got)
+	}
+}
+
+func TestGitRepoViewPrefersDisplayState(t *testing.T) {
+	var repo GitRepo
+	repo.Metadata.Name = "platform"
+	repo.Status.Display.State = "Ready"
+	repo.Status.GitJobStatus = "GitUpdating"
+	repo.Status.Commit = "abc1234"
+
+	if got := gitRepoView(repo).SyncState; got != "Ready" {
+		t.Fatalf("sync state = %q, want display state Ready", got)
+	}
+	repo.Status.PollingCommit = "def5678"
+	if got := gitRepoView(repo).SyncState; got != "Out of sync" {
+		t.Fatalf("sync state with pending commit = %q, want Out of sync", got)
+	}
+}
+
+func TestFleetListsAllPagesAndCachesResults(t *testing.T) {
+	tests := []struct {
+		name     string
+		apiMode  string
+		path     string
+		useSteve bool
+	}{
+		{name: "Kubernetes", apiMode: "kubernetes", path: "/apis/fleet.cattle.io/v1alpha1/bundles"},
+		{name: "Steve", apiMode: "steve", path: "/v1/fleet.cattle.io.bundles", useSteve: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var calls atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				call := calls.Add(1)
+				if r.URL.Path != test.path {
+					t.Errorf("path = %q, want %q", r.URL.Path, test.path)
+				}
+				if got := r.URL.Query().Get("limit"); got != "1" {
+					t.Errorf("limit = %q, want 1", got)
+				}
+				if call == 1 {
+					if r.URL.Query().Get("continue") != "" {
+						t.Errorf("first request unexpectedly had a continue token")
+					}
+					bundle := Bundle{Metadata: Metadata{Name: "first"}}
+					if test.useSteve {
+						writeJSON(w, http.StatusOK, map[string]any{"data": []Bundle{bundle}, "continue": "next-token"})
+					} else {
+						writeJSON(w, http.StatusOK, map[string]any{"items": []Bundle{bundle}, "metadata": map[string]string{"continue": "next-token"}})
+					}
+					return
+				}
+				if got := r.URL.Query().Get("continue"); got != "next-token" {
+					t.Errorf("continue = %q, want next-token", got)
+				}
+				bundle := Bundle{Metadata: Metadata{Name: "second"}}
+				if test.useSteve {
+					writeJSON(w, http.StatusOK, map[string]any{"data": []Bundle{bundle}})
+				} else {
+					writeJSON(w, http.StatusOK, map[string]any{"items": []Bundle{bundle}})
+				}
+			}))
+			defer server.Close()
+
+			client := newFleetClient(Config{
+				FleetAPIBaseURL: server.URL,
+				FleetAPIMode:    test.apiMode,
+				FleetPageSize:   1,
+				FleetCacheTTL:   time.Minute,
+				RequestTimeout:  time.Second,
+			})
+			for attempt := 0; attempt < 2; attempt++ {
+				items, err := client.listBundles(context.Background())
+				if err != nil {
+					t.Fatalf("list bundles: %v", err)
+				}
+				if len(items) != 2 || items[0].Metadata.Name != "first" || items[1].Metadata.Name != "second" {
+					t.Fatalf("unexpected paginated items: %#v", items)
+				}
+			}
+			if got := calls.Load(); got != 2 {
+				t.Fatalf("Fleet API calls = %d, want 2 pages fetched once", got)
+			}
+		})
+	}
+}
+
+func TestFleetSkipTLSOverridesKubeconfigCA(t *testing.T) {
+	t.Setenv("KUBERNETES_SERVICE_HOST", "")
+	t.Setenv("KUBERNETES_SERVICE_PORT", "")
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"items": []Bundle{}})
+	}))
+	defer server.Close()
+
+	kubeconfigPath := filepath.Join(t.TempDir(), "config")
+	kubeconfig := clientcmdapi.Config{
+		CurrentContext: "fleet",
+		Clusters: map[string]*clientcmdapi.Cluster{
+			"fleet": {Server: server.URL, CertificateAuthorityData: []byte("not-a-valid-ca")},
+		},
+		AuthInfos: map[string]*clientcmdapi.AuthInfo{"fleet": {}},
+		Contexts: map[string]*clientcmdapi.Context{
+			"fleet": {Cluster: "fleet", AuthInfo: "fleet"},
+		},
+	}
+	if err := clientcmd.WriteToFile(kubeconfig, kubeconfigPath); err != nil {
+		t.Fatalf("write kubeconfig: %v", err)
+	}
+
+	client := newFleetClient(Config{KubeconfigPath: kubeconfigPath, FleetSkipTLS: true, RequestTimeout: time.Second})
+	if err := client.ready(); err != nil {
+		t.Fatalf("initialize client with skip TLS: %v", err)
+	}
+	if _, err := client.listBundles(context.Background()); err != nil {
+		t.Fatalf("list bundles with skip TLS: %v", err)
 	}
 }

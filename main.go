@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"errors"
 	"net/http"
 	"os"
 )
@@ -19,7 +20,18 @@ func main() {
 	if config.NtfyBaseURL != "" && config.NtfyTopic != "" {
 		app.logger.Info("ntfy notification channel configured", "url", config.NtfyBaseURL, "topic", config.NtfyTopic)
 	}
-	if err := http.ListenAndServe(config.ListenAddr, app.routes()); err != nil {
+	if config.ReconcileAuthToken == "" {
+		app.logger.Warn("manual reconcile is disabled until RECONCILE_AUTH_TOKEN is configured")
+	}
+	server := &http.Server{
+		Addr:              config.ListenAddr,
+		Handler:           app.routes(),
+		ReadHeaderTimeout: config.HTTPReadHeaderTimeout,
+		ReadTimeout:       config.HTTPReadTimeout,
+		WriteTimeout:      config.HTTPWriteTimeout,
+		IdleTimeout:       config.HTTPIdleTimeout,
+	}
+	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		app.logger.Error("server stopped", "error", err)
 		os.Exit(1)
 	}

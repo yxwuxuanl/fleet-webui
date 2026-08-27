@@ -3,6 +3,8 @@ const savedRefreshIntervalValue = window.localStorage.getItem('fleet-webui.refre
 const savedRefreshInterval = savedRefreshIntervalValue === null ? undefined : Number(savedRefreshIntervalValue);
 const browserNotificationStorageKey = 'fleet-webui.browserNotificationsEnabled';
 const savedBrowserNotificationsEnabled = window.localStorage.getItem(browserNotificationStorageKey) === 'true';
+const reconcileTokenStorageKey = 'fleet-webui.reconcileToken';
+const bundleDeepLink = new URL(window.location.href).searchParams.get('bundle') || '';
 const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const browserDateTimeFormatter = new Intl.DateTimeFormat('en-CA', {
   timeZone: browserTimeZone,
@@ -26,10 +28,15 @@ const state = {
   nextRefreshAt: null,
   isRefreshing: false,
   repositories: [],
-  health: { mode: 'unconfigured', notificationConfigured: false, connectionError: '' },
+  health: { mode: 'unconfigured', notificationConfigured: false, connectionError: '', reconcileEnabled: false, reconcileAuthRequired: true },
+  loadErrors: { health: '', bundles: '', repositories: '' },
   selectedBundle: null,
   detailBundle: null,
   detailGitRepo: null,
+  bundleDetailRequestId: 0,
+  gitRepoDetailRequestId: 0,
+  pendingBundleDeepLink: bundleDeepLink,
+  reconcileToken: readReconcileToken(),
   browserNotificationsEnabled: savedBrowserNotificationsEnabled,
 };
 
@@ -57,9 +64,12 @@ const elements = {
   browserNotificationDetail: document.querySelector('#browser-notification-detail'),
   browserNotificationButton: document.querySelector('#browser-notification-button'),
   modeLabel: document.querySelector('#mode-label'),
+  loadErrorBanner: document.querySelector('#load-error-banner'),
   modalRoot: document.querySelector('#modal-root'),
   summary: document.querySelector('#reconcile-summary'),
   confirm: document.querySelector('#confirm-reconcile'),
+  reconcileToken: document.querySelector('#reconcile-token'),
+  reconcileTokenHint: document.querySelector('#reconcile-token-hint'),
   detailRoot: document.querySelector('#detail-root'),
   detailTitle: document.querySelector('#detail-title'),
   detailNamespace: document.querySelector('#detail-namespace'),
@@ -88,10 +98,32 @@ const elements = {
 };
 
 async function api(path, options = {}) {
-  const response = await fetch(path, { headers: { Accept: 'application/json', ...options.headers }, ...options });
+  const { headers = {}, ...requestOptions } = options;
+  const response = await fetch(path, { ...requestOptions, headers: { Accept: 'application/json', ...headers } });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || `Request failed (${response.status})`);
+  if (!response.ok) {
+    const error = new Error(body.error || `Request failed (${response.status})`);
+    error.status = response.status;
+    throw error;
+  }
   return body;
+}
+
+function readReconcileToken() {
+  try {
+    return window.sessionStorage.getItem(reconcileTokenStorageKey) || '';
+  } catch {
+    return '';
+  }
+}
+
+function rememberReconcileToken(token) {
+  try {
+    if (token) window.sessionStorage.setItem(reconcileTokenStorageKey, token);
+    else window.sessionStorage.removeItem(reconcileTokenStorageKey);
+  } catch {
+    // The token remains available in memory when session storage is blocked.
+  }
 }
 
 function escapeHtml(value = '') {
@@ -256,13 +288,13 @@ function renderBundles() {
       <td><span class="status ${statusClass(bundle.health)}">${escapeHtml(statusText(bundle.health))}</span></td>
       <td>${escapeHtml(bundle.targets || '—')}</td>
       <td>${escapeHtml(dateLabel(bundle.lastActivity))}</td>
-      <td><button class="action-button" type="button" data-reconcile="${escapeHtml(bundle.namespace)}/${escapeHtml(bundle.name)}">Reconcile</button></td>
+      <td><button class="action-button" type="button" data-reconcile="${escapeHtml(bundle.namespace)}/${escapeHtml(bundle.name)}" ${state.health.reconcileEnabled ? '' : 'disabled title="Manual reconcile is disabled by the server"'}>${state.health.reconcileEnabled ? 'Reconcile' : 'Read only'}</button></td>
     </tr>`).join('');
   elements.bundlesBody.innerHTML = rows;
   elements.bundleEmpty.hidden = matching.length > 0;
-  elements.bundleEmpty.textContent = state.bundleQuery.trim()
-    ? `No bundles match “${state.bundleQuery.trim()}”.`
-    : 'No bundles found.';
+  elements.bundleEmpty.textContent = state.loadErrors.bundles && state.bundles.length === 0
+    ? `Bundles could not be loaded: ${state.loadErrors.bundles}`
+    : state.bundleQuery.trim() ? `No bundles match “${state.bundleQuery.trim()}”.` : 'No bundles found.';
   const showingFrom = matching.length ? first + 1 : 0;
   const showingTo = Math.min(first + state.bundlesPerPage, matching.length);
   elements.bundleCountLabel.textContent = state.bundleQuery.trim()
@@ -288,6 +320,9 @@ function renderRepositories() {
     </tr>`).join('');
   elements.repositoriesBody.innerHTML = rows;
   elements.repositoriesEmpty.hidden = state.repositories.length > 0;
+  elements.repositoriesEmpty.textContent = state.loadErrors.repositories && state.repositories.length === 0
+    ? `Git repositories could not be loaded: ${state.loadErrors.repositories}`
+    : 'No Git repositories found.';
   document.querySelectorAll('[data-gitrepo-detail]').forEach(button => button.addEventListener('click', () => openGitRepoDetail(button.dataset.gitrepoDetail)));
 }
 
@@ -311,13 +346,27 @@ function renderChrome() {
   elements.modeLabel.textContent = state.health.connectionError
     ? 'Fleet connection unavailable'
     : state.health.notificationConfigured ? `${connection} · ntfy enabled` : connection;
-  elements.notificationDetail.textContent = state.health.notificationConfigured
-      ? 'Every manual reconcile posts to the configured ntfy channel.'
-      : 'ntfy is not configured yet; reconciles will run without delivery notifications.';
+  const loadIssues = [];
+  if (state.loadErrors.health) loadIssues.push(`Health: ${state.loadErrors.health}`);
+  if (state.health.connectionError) loadIssues.push(state.health.connectionError);
+  if (state.loadErrors.bundles) loadIssues.push(`Bundles: ${state.loadErrors.bundles}`);
+  if (state.loadErrors.repositories) loadIssues.push(`Git repositories: ${state.loadErrors.repositories}`);
+  elements.loadErrorBanner.hidden = loadIssues.length === 0;
+  elements.loadErrorBanner.textContent = loadIssues.length ? `Some Fleet data is unavailable. ${loadIssues.join(' · ')}` : '';
+  elements.notificationDetail.textContent = !state.health.reconcileEnabled
+    ? 'Manual reconcile is disabled until a server-side authorization token is configured.'
+    : state.health.notificationConfigured
+      ? 'Every authorized manual reconcile posts to the configured ntfy channel.'
+      : 'ntfy is not configured; authorized reconciles run without delivery notifications.';
+  elements.detailReconcile.disabled = !state.health.reconcileEnabled;
   renderBrowserNotifications();
 }
 
 function openReconcile(id) {
+  if (!state.health.reconcileEnabled) {
+    toast('Manual reconcile is disabled by the server.', 'warning');
+    return;
+  }
   const [namespace, name] = id.split('/');
   state.selectedBundle = state.bundles.find(bundle => bundle.namespace === namespace && bundle.name === name);
   if (!state.selectedBundle) return;
@@ -328,19 +377,28 @@ function openReconcile(id) {
     ['Commit', bundle.commit || '—'],
     ['Targets', bundle.targets || '—'],
   ].map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`).join('');
+  elements.reconcileToken.value = state.reconcileToken;
+  elements.reconcileTokenHint.textContent = 'Required for this write action. Saved only for this browser tab after a successful request.';
   elements.modalRoot.hidden = false;
-  elements.confirm.focus();
+  updateConfirmReconcileState();
+  (elements.reconcileToken.value ? elements.confirm : elements.reconcileToken).focus();
 }
 
 function closeModal() {
   elements.modalRoot.hidden = true;
   state.selectedBundle = null;
+  updateConfirmReconcileState();
+}
+
+function updateConfirmReconcileState() {
+  elements.confirm.disabled = !state.selectedBundle || !state.health.reconcileEnabled || !elements.reconcileToken.value.trim();
 }
 
 async function openBundleDetail(id) {
   const [namespace, name] = id.split('/');
   const listItem = state.bundles.find(bundle => bundle.namespace === namespace && bundle.name === name);
   if (!listItem) return;
+  const requestId = ++state.bundleDetailRequestId;
   state.detailBundle = listItem;
   elements.detailTitle.textContent = name;
   elements.detailNamespace.textContent = namespace;
@@ -350,12 +408,14 @@ async function openBundleDetail(id) {
   elements.detailRoot.hidden = false;
   try {
     const detail = await api(`/api/bundles/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}`);
+    if (requestId !== state.bundleDetailRequestId || elements.detailRoot.hidden) return;
     state.detailBundle = detail;
     renderBundleDetail(detail);
     elements.detailLoading.hidden = true;
     elements.detailContent.hidden = false;
     elements.detailReconcile.focus();
   } catch (error) {
+    if (requestId !== state.bundleDetailRequestId || elements.detailRoot.hidden) return;
     elements.detailLoading.textContent = error.message;
     toast(`Could not load ${name} detail: ${error.message}`, 'error');
   }
@@ -398,6 +458,7 @@ function renderConditions(conditions = []) {
 }
 
 function closeDetail() {
+  state.bundleDetailRequestId += 1;
   elements.detailRoot.hidden = true;
   state.detailBundle = null;
 }
@@ -406,6 +467,7 @@ async function openGitRepoDetail(id) {
   const [namespace, name] = id.split('/');
   const listItem = state.repositories.find(repo => repo.namespace === namespace && repo.name === name);
   if (!listItem) return;
+  const requestId = ++state.gitRepoDetailRequestId;
   state.detailGitRepo = listItem;
   elements.gitRepoDetailTitle.textContent = name;
   elements.gitRepoDetailNamespace.textContent = namespace;
@@ -415,11 +477,13 @@ async function openGitRepoDetail(id) {
   elements.gitRepoDetailRoot.hidden = false;
   try {
     const detail = await api(`/api/gitrepos/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}`);
+    if (requestId !== state.gitRepoDetailRequestId || elements.gitRepoDetailRoot.hidden) return;
     state.detailGitRepo = detail;
     renderGitRepoDetail(detail);
     elements.gitRepoDetailLoading.hidden = true;
     elements.gitRepoDetailContent.hidden = false;
   } catch (error) {
+    if (requestId !== state.gitRepoDetailRequestId || elements.gitRepoDetailRoot.hidden) return;
     elements.gitRepoDetailLoading.textContent = error.message;
     toast(`Could not load ${name} detail: ${error.message}`, 'error');
   }
@@ -430,7 +494,7 @@ function renderGitRepoDetail(repo) {
   elements.gitRepoDetailNamespace.textContent = `${repo.namespace} / ${repo.name}`;
   elements.gitRepoDetailHealth.className = `status ${statusClass(repo.syncState)}`;
   elements.gitRepoDetailHealth.textContent = statusText(repo.syncState);
-  elements.gitRepoDetailState.textContent = repo.gitJobStatus || repo.syncState || 'Unknown';
+  elements.gitRepoDetailState.textContent = repo.syncState || repo.gitJobStatus || 'Unknown';
   elements.gitRepoDetailOverview.innerHTML = [
     ['Repository', repo.repo || '—'],
     ['Branch', repo.branch || '—'],
@@ -462,6 +526,7 @@ function renderGitRepoDetail(repo) {
 }
 
 function closeGitRepoDetail() {
+  state.gitRepoDetailRequestId += 1;
   elements.gitRepoDetailRoot.hidden = true;
   state.detailGitRepo = null;
 }
@@ -478,28 +543,71 @@ async function loadData({ quiet = false } = {}) {
   if (state.isRefreshing) return;
   state.isRefreshing = true;
   try {
-    const [health, bundles, repositories] = await Promise.all([api('/api/health'), api('/api/bundles'), api('/api/gitrepos')]);
-    state.health = health;
-    state.bundles = bundles.items || [];
-    state.bundlePage = 1;
-    state.repositories = repositories.items || [];
+    const [healthResult, bundlesResult, repositoriesResult] = await Promise.allSettled([
+      api('/api/health'),
+      api('/api/bundles'),
+      api('/api/gitrepos'),
+    ]);
+    if (healthResult.status === 'fulfilled') {
+      state.health = healthResult.value;
+      state.loadErrors.health = '';
+    } else {
+      state.loadErrors.health = healthResult.reason.message;
+    }
+    if (bundlesResult.status === 'fulfilled') {
+      state.bundles = bundlesResult.value.items || [];
+      state.loadErrors.bundles = '';
+    } else {
+      state.loadErrors.bundles = bundlesResult.reason.message;
+    }
+    if (repositoriesResult.status === 'fulfilled') {
+      state.repositories = repositoriesResult.value.items || [];
+      state.loadErrors.repositories = '';
+    } else {
+      state.loadErrors.repositories = repositoriesResult.reason.message;
+    }
     renderBundles(); renderRepositories(); renderChrome();
-    if (!quiet) toast('Fleet data refreshed.');
-  } catch (error) {
-    toast(error.message, 'error');
+    if (bundlesResult.status === 'fulfilled') consumeBundleDeepLink();
+    const failures = Object.values(state.loadErrors).filter(Boolean);
+    if (!quiet) {
+      toast(failures.length ? `Refresh completed with ${failures.length} error${failures.length === 1 ? '' : 's'}.` : 'Fleet data refreshed.', failures.length ? 'error' : 'success');
+    }
   } finally {
     state.isRefreshing = false;
     scheduleAutoRefresh();
   }
 }
 
+function consumeBundleDeepLink() {
+  const id = state.pendingBundleDeepLink;
+  if (!id) return;
+  state.pendingBundleDeepLink = '';
+  const parts = id.split('/');
+  if (parts.length !== 2 || !parts[0] || !parts[1]) {
+    toast('The notification link does not contain a valid bundle name.', 'warning');
+    return;
+  }
+  const exists = state.bundles.some(bundle => bundle.namespace === parts[0] && bundle.name === parts[1]);
+  if (!exists) {
+    toast(`Bundle ${id} was not found.`, 'warning');
+    return;
+  }
+  openBundleDetail(id);
+}
+
 async function confirmReconcile() {
   const bundle = state.selectedBundle;
-  if (!bundle) return;
+  const token = elements.reconcileToken.value.trim();
+  if (!bundle || !token) return;
+  state.reconcileToken = token;
   elements.confirm.disabled = true;
   elements.confirm.textContent = 'Reconciling…';
   try {
-    const result = await api(`/api/bundles/${encodeURIComponent(bundle.namespace)}/${encodeURIComponent(bundle.name)}/reconcile`, { method: 'POST' });
+    const result = await api(`/api/bundles/${encodeURIComponent(bundle.namespace)}/${encodeURIComponent(bundle.name)}/reconcile`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    rememberReconcileToken(token);
     closeModal();
     const suffix = result.notification === 'sent' ? ' ntfy notified.' : result.notification === 'failed' ? ' Reconcile started, but ntfy delivery failed.' : ' Reconcile started; ntfy is not configured.';
     toast(`${bundle.name} reconcile requested (generation ${result.generation}).${suffix}`, result.notification === 'failed' ? 'warning' : 'success');
@@ -511,15 +619,28 @@ async function confirmReconcile() {
     );
     await loadData({ quiet: true });
   } catch (error) {
+    if (error.status === 401) {
+      state.reconcileToken = '';
+      rememberReconcileToken('');
+      elements.reconcileToken.value = '';
+      elements.reconcileTokenHint.textContent = 'That token was rejected. Enter the token configured on the server.';
+      elements.reconcileToken.focus();
+    } else if (error.status === 503) {
+      state.health.reconcileEnabled = false;
+      closeModal();
+      renderBundles();
+      renderChrome();
+    }
     toast(error.message, 'error');
     notifyBrowser('Fleet reconcile request failed', `${bundle.namespace}/${bundle.name}: ${error.message}`, `fleet-reconcile-${bundle.namespace}-${bundle.name}`);
   } finally {
-    elements.confirm.disabled = false;
     elements.confirm.textContent = 'Reconcile';
+    updateConfirmReconcileState();
   }
 }
 
 elements.confirm.addEventListener('click', confirmReconcile);
+elements.reconcileToken.addEventListener('input', updateConfirmReconcileState);
 elements.browserNotificationButton.addEventListener('click', toggleBrowserNotifications);
 elements.refresh.addEventListener('click', () => loadData());
 elements.refreshInterval.value = String(state.refreshIntervalSeconds);

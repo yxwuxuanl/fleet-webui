@@ -1,6 +1,6 @@
 # Fleet WebUI
 
-A Go-based web console for Rancher Fleet. It lists Bundle and GitRepo status, can request a Bundle reconcile, and sends a fixed-topic ntfy notification after Fleet accepts that request.
+A Go-based web console for Rancher Fleet. It lists Bundle and GitRepo status, can request an authenticated Bundle reconcile, and sends a fixed-topic ntfy notification after Fleet accepts that request.
 
 ## Run locally
 
@@ -8,7 +8,7 @@ A Go-based web console for Rancher Fleet. It lists Bundle and GitRepo status, ca
 go run .
 ```
 
-Open `http://localhost:8080`. Configure a local kubeconfig or direct Fleet API endpoint before opening the console. If no Fleet connection is available, the UI shows a clear connection error instead of sample resources.
+Open `http://localhost:8080`. Configure a local kubeconfig or direct Fleet API endpoint before opening the console. If no Fleet connection is available, the UI keeps a visible connection error instead of sample resources. Manual reconcile is read-only until `RECONCILE_AUTH_TOKEN` is set.
 
 ## Connect Rancher Fleet
 
@@ -28,7 +28,7 @@ go run .
 
 When running in a Pod, the app detects `KUBERNETES_SERVICE_HOST` and `KUBERNETES_SERVICE_PORT` and uses the mounted ServiceAccount token and CA at the standard Kubernetes paths. No connection-mode environment variable is required.
 
-The included [RBAC manifest](deploy/rbac.yaml) grants the minimum Fleet permissions required by the UI. Bind it only to the namespaces/clusters the console should manage.
+The included [RBAC manifest](deploy/rbac.yaml) is read-only and grants only the permissions needed to list Fleet resources. The Helm chart adds Bundle `patch` permission only when authenticated reconcile is enabled. Bind either deployment only to the namespaces/clusters the console should manage.
 
 ### Direct Rancher API
 
@@ -37,17 +37,29 @@ For a Rancher Steve endpoint, set `FLEET_API_BASE_URL` and `FLEET_API_TOKEN`. `F
 The Fleet identity needs:
 
 - `get`, `list`, `watch` on `bundles.fleet.cattle.io` and `gitrepos.fleet.cattle.io`
-- `get`, `patch` on `bundles.fleet.cattle.io`
+- `patch` on `bundles.fleet.cattle.io` only when manual reconcile is enabled
+
+List responses are fetched in chunks (`FLEET_PAGE_SIZE`, default `250`) and shared between browser sessions for a short interval (`FLEET_CACHE_TTL_SECONDS`, default `10`). This avoids a full upstream list request from every open dashboard while preserving complete results.
 
 ## Reconcile and notifications
 
-`POST /api/bundles/{namespace}/{name}/reconcile` reads the current Bundle, increments `spec.forceSyncGeneration`, and patches it with its current `resourceVersion`. The operation retries conflicts up to three times.
+`POST /api/bundles/{namespace}/{name}/reconcile` is disabled unless `RECONCILE_AUTH_TOKEN` is configured. When enabled, callers must send that value as a Bearer token. The UI asks for it only when a user opens the reconcile dialog and stores it in `sessionStorage` only after a successful request, so it is discarded when the browser tab closes.
+
+Use a long random token, deliver it through a secret manager, and expose the application over HTTPS. The shared token authorizes the write operation; proxy-provided user headers are deliberately not trusted as identity.
+
+After authorization, the endpoint reads the current Bundle, increments `spec.forceSyncGeneration`, and patches it with its current `resourceVersion`. The operation retries conflicts up to three times.
 
 Once Fleet accepts the patch, the server posts a JSON message to the fixed `NTFY_TOPIC`. A failed ntfy delivery never rolls back a reconcile that has already been accepted. The API returns this as `notification: "failed"` so the UI can surface it.
 
 Keep `NTFY_TOKEN` in a Kubernetes Secret or another secret manager. Do not put it in browser code.
 
-### Browser system notifications
+When `APP_BASE_URL` is configured, ntfy messages link directly to the reconciled Bundle drawer in the dashboard.
+
+## HTTP limits
+
+The server applies read-header, read, write, and idle timeouts. Their defaults are documented in [.env.example](.env.example); adjust them when an upstream proxy or unusually slow Fleet API requires a larger request window.
+
+## Browser system notifications
 
 The UI offers an opt-in **Enable browser alerts** control below the Git repository list. Once a user allows it, the browser shows a local system notification when that user’s manual reconcile request is accepted or cannot be requested. The opt-in is kept only in that browser, and no ntfy credentials are sent to it.
 

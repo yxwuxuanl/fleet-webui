@@ -46,6 +46,25 @@ spec:
               value: ":8080"
             - name: REQUEST_TIMEOUT_SECONDS
               value: {{ .Values.fleet.requestTimeoutSeconds | quote }}
+            - name: FLEET_PAGE_SIZE
+              value: {{ .Values.fleet.pageSize | quote }}
+            - name: FLEET_CACHE_TTL_SECONDS
+              value: {{ .Values.fleet.cacheTTLSeconds | quote }}
+            - name: HTTP_READ_HEADER_TIMEOUT_SECONDS
+              value: {{ .Values.server.readHeaderTimeoutSeconds | quote }}
+            - name: HTTP_READ_TIMEOUT_SECONDS
+              value: {{ .Values.server.readTimeoutSeconds | quote }}
+            - name: HTTP_WRITE_TIMEOUT_SECONDS
+              value: {{ .Values.server.writeTimeoutSeconds | quote }}
+            - name: HTTP_IDLE_TIMEOUT_SECONDS
+              value: {{ .Values.server.idleTimeoutSeconds | quote }}
+            {{- with .Values.reconcileAuth.existingSecret }}
+            - name: RECONCILE_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: {{ required "reconcileAuth.tokenKey is required when reconcileAuth.existingSecret is set" $.Values.reconcileAuth.tokenKey }}
+            {{- end }}
             {{- with .Values.appBaseURL }}
             - name: APP_BASE_URL
               value: {{ . | quote }}

@@ -28,7 +28,12 @@ func (a *App) notifyReconcile(ctx context.Context, bundle BundleView, generation
 	}
 	click := ""
 	if a.config.AppBaseURL != "" {
-		click = a.config.AppBaseURL + "/?bundle=" + url.QueryEscape(bundle.Namespace+"/"+bundle.Name)
+		if appURL, err := url.Parse(a.config.AppBaseURL); err == nil {
+			query := appURL.Query()
+			query.Set("bundle", bundle.Namespace+"/"+bundle.Name)
+			appURL.RawQuery = query.Encode()
+			click = appURL.String()
+		}
 	}
 	message := ntfyMessage{
 		Topic: a.config.NtfyTopic, Title: "[Fleet] Bundle reconcile triggered", Priority: 3,

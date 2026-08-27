@@ -51,6 +51,18 @@ ingress:
 
 fleet:
   requestTimeoutSeconds: 12
+  pageSize: 250
+  cacheTTLSeconds: 10
+
+server:
+  readHeaderTimeoutSeconds: 5
+  readTimeoutSeconds: 15
+  writeTimeoutSeconds: 90
+  idleTimeoutSeconds: 60
+
+reconcileAuth:
+  existingSecret: ""
+  tokenKey: token
 
 ntfy:
   enabled: false

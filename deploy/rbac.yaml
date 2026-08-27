@@ -12,9 +12,6 @@ rules:
   - apiGroups: ["fleet.cattle.io"]
     resources: ["bundles", "gitrepos"]
     verbs: ["get", "list", "watch"]
-  - apiGroups: ["fleet.cattle.io"]
-    resources: ["bundles"]
-    verbs: ["patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -49,16 +46,6 @@ spec:
         - name: fleet-webui
           image: ghcr.io/replace-me/fleet-webui:latest
           imagePullPolicy: IfNotPresent
-          env:
-            - name: NTFY_BASE_URL
-              value: https://ntfy.example.com
-            - name: NTFY_TOPIC
-              value: fleet-reconcile-REPLACE_WITH_RANDOM_TOPIC
-            - name: NTFY_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: fleet-webui-ntfy
-                  key: token
           ports:
             - name: http
               containerPort: 8080

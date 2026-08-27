@@ -56,6 +56,8 @@
             <span id="mode-label" class="mode-label"></span>
           </div>
 
+          <div id="load-error-banner" class="load-error-banner" role="alert" hidden></div>
+
           <div class="summary-grid" aria-label="Bundle status summary">
             <article class="summary-card healthy-card"><span class="summary-icon">✓</span><div><span>Healthy bundles</span><strong id="healthy-count">—</strong></div><small id="healthy-percent">—</small></article>
             <article class="summary-card warning-card"><span class="summary-icon">!</span><div><span>Needs attention</span><strong id="attention-summary-count">—</strong></div><small id="attention-percent">—</small></article>
@@ -121,6 +123,11 @@
         <h2 id="modal-title">Reconcile bundle?</h2>
         <p id="modal-description">Fleet will redeploy this bundle to its configured targets.</p>
         <dl id="reconcile-summary" class="reconcile-summary"></dl>
+        <label class="reconcile-token-field" for="reconcile-token">
+          <span>Reconcile token</span>
+          <input id="reconcile-token" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" />
+          <small id="reconcile-token-hint">Required for this write action.</small>
+        </label>
         <p class="modal-note">The configured ntfy channel is notified after Fleet accepts this request. This browser also receives an alert when enabled.</p>
         <div class="modal-actions"><button type="button" class="button secondary" data-close-modal>Cancel</button><button type="button" class="button primary" id="confirm-reconcile">Reconcile</button></div>
       </section>
