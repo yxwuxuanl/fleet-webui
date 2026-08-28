@@ -7,7 +7,7 @@ metadata:
     {{- include "fleet-webui.labels" . | nindent 4 }}
 rules:
   - apiGroups: ["fleet.cattle.io"]
-    resources: ["bundles", "gitrepos"]
+    resources: ["bundles", "gitrepos", "clusters", "bundledeployments"]
     verbs: ["get", "list", "watch"]
   {{- if .Values.reconcileAuth.existingSecret }}
   - apiGroups: ["fleet.cattle.io"]

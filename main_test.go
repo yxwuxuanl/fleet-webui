@@ -49,12 +49,54 @@ func TestAPIListsAndReconcilesBundle(t *testing.T) {
 	gitRepo.Status.ResourceCounts.DesiredReady = 1
 	gitRepo.Status.Conditions = []Condition{{Type: "Ready", Status: "True", LastUpdateTime: &updatedAt}}
 
+	cluster := Cluster{Metadata: Metadata{
+		Name:              "edge-a",
+		Namespace:         "platform",
+		ResourceVersion:   "9",
+		CreationTimestamp: updatedAt.Add(-2 * time.Hour),
+		Labels:            map[string]string{"region": "eu-west"},
+	}}
+	cluster.Spec.ClientID = "edge-a-client"
+	cluster.Status.Namespace = "cluster-platform-edge-a-12ab"
+	cluster.Status.Display.State = "Ready"
+	cluster.Status.Display.ReadyBundles = "1 / 1"
+	cluster.Status.Agent.LastSeen = updatedAt
+	cluster.Status.Agent.Namespace = "cattle-fleet-system"
+	cluster.Status.Conditions = []Condition{{Type: "Ready", Status: "True", LastUpdateTime: &updatedAt}}
+
+	syncGeneration := int64(3)
+	bundleDeployment := BundleDeployment{Metadata: Metadata{
+		Name:              "platform-base",
+		Namespace:         cluster.Status.Namespace,
+		ResourceVersion:   "10",
+		CreationTimestamp: updatedAt.Add(-30 * time.Minute),
+		Labels: map[string]string{
+			"fleet.cattle.io/bundle-name":      "platform-base",
+			"fleet.cattle.io/bundle-namespace": "platform",
+		},
+	}}
+	bundleDeployment.Spec.DeploymentID = "deployment-3"
+	bundleDeployment.Status.AppliedDeploymentID = "deployment-3"
+	bundleDeployment.Status.Ready = true
+	bundleDeployment.Status.NonModified = true
+	bundleDeployment.Status.Display.State = "Ready"
+	bundleDeployment.Status.Display.Deployed = "True"
+	bundleDeployment.Status.Display.Monitored = "True"
+	bundleDeployment.Status.SyncGeneration = &syncGeneration
+	bundleDeployment.Status.ResourceCounts.Ready = 4
+	bundleDeployment.Status.ResourceCounts.DesiredReady = 4
+	bundleDeployment.Status.Conditions = []Condition{{Type: "Ready", Status: "True", LastUpdateTime: &updatedAt}}
+
 	fleetAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method + " " + r.URL.Path {
 		case http.MethodGet + " /apis/fleet.cattle.io/v1alpha1/bundles":
 			writeJSON(w, http.StatusOK, map[string]any{"items": []Bundle{sourceBundle}})
 		case http.MethodGet + " /apis/fleet.cattle.io/v1alpha1/gitrepos":
 			writeJSON(w, http.StatusOK, map[string]any{"items": []GitRepo{gitRepo}})
+		case http.MethodGet + " /apis/fleet.cattle.io/v1alpha1/clusters":
+			writeJSON(w, http.StatusOK, map[string]any{"items": []Cluster{cluster}})
+		case http.MethodGet + " /apis/fleet.cattle.io/v1alpha1/bundledeployments":
+			writeJSON(w, http.StatusOK, map[string]any{"items": []BundleDeployment{bundleDeployment}})
 		case http.MethodGet + " /apis/fleet.cattle.io/v1alpha1/namespaces/platform/bundles/platform-base":
 			writeJSON(w, http.StatusOK, sourceBundle)
 		case http.MethodPatch + " /apis/fleet.cattle.io/v1alpha1/namespaces/platform/bundles/platform-base":
@@ -75,6 +117,10 @@ func TestAPIListsAndReconcilesBundle(t *testing.T) {
 			writeJSON(w, http.StatusOK, sourceBundle)
 		case http.MethodGet + " /apis/fleet.cattle.io/v1alpha1/namespaces/platform/gitrepos/platform-configs":
 			writeJSON(w, http.StatusOK, gitRepo)
+		case http.MethodGet + " /apis/fleet.cattle.io/v1alpha1/namespaces/platform/clusters/edge-a":
+			writeJSON(w, http.StatusOK, cluster)
+		case http.MethodGet + " /apis/fleet.cattle.io/v1alpha1/namespaces/cluster-platform-edge-a-12ab/bundledeployments/platform-base":
+			writeJSON(w, http.StatusOK, bundleDeployment)
 		default:
 			t.Errorf("unexpected Fleet API request: %s %s", r.Method, r.URL.Path)
 			http.NotFound(w, r)
@@ -139,6 +185,60 @@ func TestAPIListsAndReconcilesBundle(t *testing.T) {
 	}
 	if gitRepoDetail.Name != repo.Name || gitRepoDetail.Namespace != repo.Namespace || len(gitRepoDetail.Conditions) == 0 {
 		t.Fatalf("unexpected Git repository detail: %#v", gitRepoDetail)
+	}
+
+	clustersResponse, err := http.Get(server.URL + "/api/clusters")
+	if err != nil {
+		t.Fatalf("list clusters: %v", err)
+	}
+	defer clustersResponse.Body.Close()
+	var clusters struct {
+		Items []ClusterView `json:"items"`
+	}
+	if err := json.NewDecoder(clustersResponse.Body).Decode(&clusters); err != nil {
+		t.Fatalf("decode clusters: %v", err)
+	}
+	if len(clusters.Items) != 1 || clusters.Items[0].ReadyBundles != "1 / 1" {
+		t.Fatalf("unexpected clusters: %#v", clusters.Items)
+	}
+	clusterDetailResponse, err := http.Get(server.URL + "/api/clusters/platform/edge-a")
+	if err != nil {
+		t.Fatalf("get cluster detail: %v", err)
+	}
+	defer clusterDetailResponse.Body.Close()
+	var clusterDetail ClusterDetailView
+	if err := json.NewDecoder(clusterDetailResponse.Body).Decode(&clusterDetail); err != nil {
+		t.Fatalf("decode cluster detail: %v", err)
+	}
+	if clusterDetail.ClientID != "edge-a-client" || len(clusterDetail.Conditions) != 1 {
+		t.Fatalf("unexpected cluster detail: %#v", clusterDetail)
+	}
+
+	deploymentsResponse, err := http.Get(server.URL + "/api/bundledeployments")
+	if err != nil {
+		t.Fatalf("list BundleDeployments: %v", err)
+	}
+	defer deploymentsResponse.Body.Close()
+	var deployments struct {
+		Items []BundleDeploymentView `json:"items"`
+	}
+	if err := json.NewDecoder(deploymentsResponse.Body).Decode(&deployments); err != nil {
+		t.Fatalf("decode BundleDeployments: %v", err)
+	}
+	if len(deployments.Items) != 1 || deployments.Items[0].Cluster != "platform/edge-a" {
+		t.Fatalf("unexpected BundleDeployments: %#v", deployments.Items)
+	}
+	deploymentDetailResponse, err := http.Get(server.URL + "/api/bundledeployments/cluster-platform-edge-a-12ab/platform-base")
+	if err != nil {
+		t.Fatalf("get BundleDeployment detail: %v", err)
+	}
+	defer deploymentDetailResponse.Body.Close()
+	var deploymentDetail BundleDeploymentDetailView
+	if err := json.NewDecoder(deploymentDetailResponse.Body).Decode(&deploymentDetail); err != nil {
+		t.Fatalf("decode BundleDeployment detail: %v", err)
+	}
+	if deploymentDetail.AppliedDeploymentID != "deployment-3" || deploymentDetail.ResourceCounts.Ready != 4 {
+		t.Fatalf("unexpected BundleDeployment detail: %#v", deploymentDetail)
 	}
 
 	bundle := before.Items[0]

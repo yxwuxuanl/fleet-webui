@@ -89,6 +89,62 @@ type GitRepoResourceSummary struct {
 	Unknown      int `json:"unknown"`
 }
 
+type Cluster struct {
+	Metadata Metadata `json:"metadata"`
+	Spec     struct {
+		Paused         bool   `json:"paused"`
+		ClientID       string `json:"clientID"`
+		AgentNamespace string `json:"agentNamespace"`
+	} `json:"spec"`
+	Status struct {
+		Namespace    string `json:"namespace"`
+		APIServerURL string `json:"apiServerURL"`
+		Display      struct {
+			ReadyBundles string `json:"readyBundles"`
+			State        string `json:"state"`
+		} `json:"display"`
+		Agent struct {
+			LastSeen  time.Time `json:"lastSeen"`
+			Namespace string    `json:"namespace"`
+		} `json:"agent"`
+		Conditions []Condition `json:"conditions"`
+	} `json:"status"`
+}
+
+type BundleDeployment struct {
+	Metadata Metadata `json:"metadata"`
+	Spec     struct {
+		Paused             bool   `json:"paused"`
+		DeploymentID       string `json:"deploymentID"`
+		StagedDeploymentID string `json:"stagedDeploymentID"`
+		Options            struct {
+			ForceSyncGeneration int64  `json:"forceSyncGeneration"`
+			TargetNamespace     string `json:"namespace"`
+		} `json:"options"`
+	} `json:"spec"`
+	Status struct {
+		Conditions          []Condition `json:"conditions"`
+		AppliedDeploymentID string      `json:"appliedDeploymentID"`
+		Release             string      `json:"release"`
+		Ready               bool        `json:"ready"`
+		NonModified         bool        `json:"nonModified"`
+		Display             struct {
+			Deployed  string `json:"deployed"`
+			Monitored string `json:"monitored"`
+			State     string `json:"state"`
+		} `json:"display"`
+		SyncGeneration *int64                 `json:"syncGeneration"`
+		ResourceCounts GitRepoResourceSummary `json:"resourceCounts"`
+		Resources      []struct {
+			Kind       string    `json:"kind"`
+			APIVersion string    `json:"apiVersion"`
+			Namespace  string    `json:"namespace"`
+			Name       string    `json:"name"`
+			CreatedAt  time.Time `json:"createdAt"`
+		} `json:"resources"`
+	} `json:"status"`
+}
+
 type BundleView struct {
 	Name            string `json:"name"`
 	Namespace       string `json:"namespace"`
@@ -160,6 +216,59 @@ type GitRepoDetailView struct {
 	ReadyBundleDeployments  string                 `json:"readyBundleDeployments,omitempty"`
 	ResourceCounts          GitRepoResourceSummary `json:"resourceCounts"`
 	Conditions              []BundleConditionView  `json:"conditions"`
+}
+
+type ClusterView struct {
+	Name             string `json:"name"`
+	Namespace        string `json:"namespace"`
+	ClusterNamespace string `json:"clusterNamespace,omitempty"`
+	State            string `json:"state"`
+	ReadyBundles     string `json:"readyBundles"`
+	Paused           bool   `json:"paused"`
+	LastSeen         string `json:"lastSeen,omitempty"`
+	AgentNamespace   string `json:"agentNamespace,omitempty"`
+	Message          string `json:"message,omitempty"`
+}
+
+type ClusterDetailView struct {
+	ClusterView
+	ClientID        string                `json:"clientID,omitempty"`
+	APIServerURL    string                `json:"apiServerURL,omitempty"`
+	CreatedAt       string                `json:"createdAt,omitempty"`
+	ResourceVersion string                `json:"resourceVersion,omitempty"`
+	Labels          map[string]string     `json:"labels"`
+	Conditions      []BundleConditionView `json:"conditions"`
+}
+
+type BundleDeploymentView struct {
+	Name            string `json:"name"`
+	Namespace       string `json:"namespace"`
+	Cluster         string `json:"cluster"`
+	BundleName      string `json:"bundleName"`
+	BundleNamespace string `json:"bundleNamespace,omitempty"`
+	State           string `json:"state"`
+	Deployed        string `json:"deployed,omitempty"`
+	Monitored       string `json:"monitored,omitempty"`
+	Release         string `json:"release,omitempty"`
+	Ready           bool   `json:"ready"`
+	Paused          bool   `json:"paused"`
+	LastActivity    string `json:"lastActivity,omitempty"`
+	Message         string `json:"message,omitempty"`
+}
+
+type BundleDeploymentDetailView struct {
+	BundleDeploymentView
+	DeploymentID        string                 `json:"deploymentID,omitempty"`
+	StagedDeploymentID  string                 `json:"stagedDeploymentID,omitempty"`
+	AppliedDeploymentID string                 `json:"appliedDeploymentID,omitempty"`
+	TargetNamespace     string                 `json:"targetNamespace,omitempty"`
+	ForceGeneration     int64                  `json:"forceGeneration"`
+	SyncGeneration      *int64                 `json:"syncGeneration,omitempty"`
+	ResourceCounts      GitRepoResourceSummary `json:"resourceCounts"`
+	ResourceTotal       int                    `json:"resourceTotal"`
+	CreatedAt           string                 `json:"createdAt,omitempty"`
+	ResourceVersion     string                 `json:"resourceVersion,omitempty"`
+	Conditions          []BundleConditionView  `json:"conditions"`
 }
 
 func latestTime(values ...*time.Time) time.Time {
@@ -350,6 +459,89 @@ func gitRepoDetailView(repo GitRepo) GitRepoDetailView {
 		ReadyBundleDeployments:  repo.Status.Display.ReadyBundleDeployments,
 		ResourceCounts:          repo.Status.ResourceCounts,
 		Conditions:              conditions,
+	}
+}
+
+func conditionViews(conditions []Condition) []BundleConditionView {
+	views := make([]BundleConditionView, 0, len(conditions))
+	for _, condition := range conditions {
+		updated := latestTime(condition.LastUpdateTime, condition.LastTransitionTime)
+		views = append(views, BundleConditionView{
+			Type: condition.Type, Status: condition.Status, Reason: condition.Reason, Message: condition.Message,
+			LastUpdated: timestamp(updated),
+		})
+	}
+	return views
+}
+
+func clusterView(cluster Cluster) ClusterView {
+	activity, message := latestCondition(cluster.Status.Conditions)
+	if cluster.Status.Agent.LastSeen.After(activity) {
+		activity = cluster.Status.Agent.LastSeen
+	}
+	state := strings.TrimSpace(cluster.Status.Display.State)
+	if cluster.Spec.Paused {
+		state = "Paused"
+	} else if state == "" {
+		state = "Unknown"
+	}
+	agentNamespace := cluster.Spec.AgentNamespace
+	if agentNamespace == "" {
+		agentNamespace = cluster.Status.Agent.Namespace
+	}
+	return ClusterView{
+		Name: cluster.Metadata.Name, Namespace: cluster.Metadata.Namespace,
+		ClusterNamespace: cluster.Status.Namespace, State: state, ReadyBundles: cluster.Status.Display.ReadyBundles,
+		Paused: cluster.Spec.Paused, LastSeen: timestamp(activity), AgentNamespace: agentNamespace, Message: message,
+	}
+}
+
+func clusterDetailView(cluster Cluster) ClusterDetailView {
+	return ClusterDetailView{
+		ClusterView: clusterView(cluster), ClientID: cluster.Spec.ClientID, APIServerURL: cluster.Status.APIServerURL,
+		CreatedAt: timestamp(cluster.Metadata.CreationTimestamp), ResourceVersion: cluster.Metadata.ResourceVersion,
+		Labels: cluster.Metadata.Labels, Conditions: conditionViews(cluster.Status.Conditions),
+	}
+}
+
+func bundleDeploymentView(deployment BundleDeployment, clusterName string) BundleDeploymentView {
+	activity, message := latestCondition(deployment.Status.Conditions)
+	if activity.IsZero() {
+		activity = deployment.Metadata.CreationTimestamp
+	}
+	state := strings.TrimSpace(deployment.Status.Display.State)
+	if deployment.Spec.Paused {
+		state = "Paused"
+	} else if state == "" && deployment.Status.Ready {
+		state = "Ready"
+	} else if state == "" {
+		state = "Unknown"
+	}
+	if clusterName == "" {
+		clusterName = deployment.Metadata.Namespace
+	}
+	bundleName := deployment.Metadata.Labels["fleet.cattle.io/bundle-name"]
+	if bundleName == "" {
+		bundleName = deployment.Metadata.Name
+	}
+	return BundleDeploymentView{
+		Name: deployment.Metadata.Name, Namespace: deployment.Metadata.Namespace, Cluster: clusterName,
+		BundleName: bundleName, BundleNamespace: deployment.Metadata.Labels["fleet.cattle.io/bundle-namespace"],
+		State: state, Deployed: deployment.Status.Display.Deployed, Monitored: deployment.Status.Display.Monitored,
+		Release: deployment.Status.Release, Ready: deployment.Status.Ready, Paused: deployment.Spec.Paused,
+		LastActivity: timestamp(activity), Message: message,
+	}
+}
+
+func bundleDeploymentDetailView(deployment BundleDeployment, clusterName string) BundleDeploymentDetailView {
+	return BundleDeploymentDetailView{
+		BundleDeploymentView: bundleDeploymentView(deployment, clusterName),
+		DeploymentID:         deployment.Spec.DeploymentID, StagedDeploymentID: deployment.Spec.StagedDeploymentID,
+		AppliedDeploymentID: deployment.Status.AppliedDeploymentID, TargetNamespace: deployment.Spec.Options.TargetNamespace,
+		ForceGeneration: deployment.Spec.Options.ForceSyncGeneration, SyncGeneration: deployment.Status.SyncGeneration,
+		ResourceCounts: deployment.Status.ResourceCounts, ResourceTotal: len(deployment.Status.Resources),
+		CreatedAt: timestamp(deployment.Metadata.CreationTimestamp), ResourceVersion: deployment.Metadata.ResourceVersion,
+		Conditions: conditionViews(deployment.Status.Conditions),
 	}
 }
 

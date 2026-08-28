@@ -10,7 +10,7 @@ metadata:
   name: fleet-webui
 rules:
   - apiGroups: ["fleet.cattle.io"]
-    resources: ["bundles", "gitrepos"]
+    resources: ["bundles", "gitrepos", "clusters", "bundledeployments"]
     verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1

@@ -28,6 +28,8 @@ type FleetClient struct {
 	initialization error
 	bundles        resourceCache[Bundle]
 	gitRepos       resourceCache[GitRepo]
+	clusters       resourceCache[Cluster]
+	bundleDeploys  resourceCache[BundleDeployment]
 }
 
 type resourceCache[T any] struct {
@@ -254,6 +256,18 @@ func (c *FleetClient) listGitRepos(ctx context.Context) ([]GitRepo, error) {
 	})
 }
 
+func (c *FleetClient) listClusters(ctx context.Context) ([]Cluster, error) {
+	return c.clusters.load(ctx, c.config.FleetCacheTTL, func(ctx context.Context) ([]Cluster, error) {
+		return listResources[Cluster](ctx, c, "clusters")
+	})
+}
+
+func (c *FleetClient) listBundleDeployments(ctx context.Context) ([]BundleDeployment, error) {
+	return c.bundleDeploys.load(ctx, c.config.FleetCacheTTL, func(ctx context.Context) ([]BundleDeployment, error) {
+		return listResources[BundleDeployment](ctx, c, "bundledeployments")
+	})
+}
+
 func (c *FleetClient) getBundle(ctx context.Context, namespace, name string) (Bundle, error) {
 	var bundle Bundle
 	err := c.do(ctx, http.MethodGet, c.itemURL("bundles", namespace, name), nil, "", &bundle)
@@ -264,6 +278,18 @@ func (c *FleetClient) getGitRepo(ctx context.Context, namespace, name string) (G
 	var repo GitRepo
 	err := c.do(ctx, http.MethodGet, c.itemURL("gitrepos", namespace, name), nil, "", &repo)
 	return repo, err
+}
+
+func (c *FleetClient) getCluster(ctx context.Context, namespace, name string) (Cluster, error) {
+	var cluster Cluster
+	err := c.do(ctx, http.MethodGet, c.itemURL("clusters", namespace, name), nil, "", &cluster)
+	return cluster, err
+}
+
+func (c *FleetClient) getBundleDeployment(ctx context.Context, namespace, name string) (BundleDeployment, error) {
+	var deployment BundleDeployment
+	err := c.do(ctx, http.MethodGet, c.itemURL("bundledeployments", namespace, name), nil, "", &deployment)
+	return deployment, err
 }
 
 func (c *FleetClient) reconcileBundle(ctx context.Context, namespace, name string) (Bundle, int64, error) {

@@ -68,8 +68,17 @@ Browser alerts require browser support, an explicit user permission, and HTTPS i
 ## Container image
 
 ```sh
-docker build -t fleet-webui:local .
-docker run --rm -p 8080:8080 fleet-webui:local
+make image
+docker run --rm -p 8080:8080 registry.cn-shenzhen.aliyuncs.com/lin2ur/fleet-webui:$(git rev-parse --short=7 HEAD)-amd64
 ```
 
-For Kubernetes, build and publish the image, then update the image reference in `deploy/rbac.yaml` before applying it.
+`make image` builds a local `linux/amd64` image. `make image-push` builds and publishes the same image. The default image name is `registry.cn-shenzhen.aliyuncs.com/lin2ur/fleet-webui:<short-commit>-amd64`, so the unqualified commit tag and `latest` are not changed. Print the resolved name with `make image-name`.
+
+Override any image setting when needed:
+
+```sh
+make image-push IMAGE_TAG=my-temporary-tag
+make image-push IMAGE_REPOSITORY=example.com/team/fleet-webui IMAGE_PLATFORM=linux/amd64
+```
+
+For Kubernetes, publish the image, then update the image reference in `deploy/rbac.yaml` before applying it.

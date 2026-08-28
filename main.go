@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-//go:embed web/*
+//go:embed web
 var webFS embed.FS
 
 func main() {

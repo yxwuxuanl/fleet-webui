@@ -28,9 +28,17 @@ func (a *App) routes() http.Handler {
 	mux.HandleFunc("GET /api/bundles/{namespace}/{name}", a.handleBundleDetail)
 	mux.HandleFunc("GET /api/gitrepos", a.handleGitRepos)
 	mux.HandleFunc("GET /api/gitrepos/{namespace}/{name}", a.handleGitRepoDetail)
+	mux.HandleFunc("GET /api/clusters", a.handleClusters)
+	mux.HandleFunc("GET /api/clusters/{namespace}/{name}", a.handleClusterDetail)
+	mux.HandleFunc("GET /api/bundledeployments", a.handleBundleDeployments)
+	mux.HandleFunc("GET /api/bundledeployments/{namespace}/{name}", a.handleBundleDeploymentDetail)
 	mux.HandleFunc("POST /api/bundles/{namespace}/{name}/reconcile", a.handleReconcile)
 
-	static, err := fs.Sub(webFS, "web")
+	staticRoot := "web"
+	if _, err := fs.Stat(webFS, "web/dist/index.html"); err == nil {
+		staticRoot = "web/dist"
+	}
+	static, err := fs.Sub(webFS, staticRoot)
 	if err != nil {
 		panic(err)
 	}
@@ -126,6 +134,79 @@ func (a *App) handleGitRepoDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, gitRepoDetailView(repo))
+}
+
+func (a *App) handleClusters(w http.ResponseWriter, r *http.Request) {
+	items, err := a.fleet.listClusters(r.Context())
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	views := make([]ClusterView, 0, len(items))
+	for _, item := range items {
+		views = append(views, clusterView(item))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": views})
+}
+
+func (a *App) handleClusterDetail(w http.ResponseWriter, r *http.Request) {
+	namespace, name := r.PathValue("namespace"), r.PathValue("name")
+	if namespace == "" || name == "" {
+		writeError(w, http.StatusBadRequest, errors.New("namespace and name are required"))
+		return
+	}
+	cluster, err := a.fleet.getCluster(r.Context(), namespace, name)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, clusterDetailView(cluster))
+}
+
+func clusterNamesByNamespace(clusters []Cluster) map[string]string {
+	names := make(map[string]string, len(clusters))
+	for _, cluster := range clusters {
+		if cluster.Status.Namespace != "" {
+			names[cluster.Status.Namespace] = cluster.Metadata.Namespace + "/" + cluster.Metadata.Name
+		}
+	}
+	return names
+}
+
+func (a *App) handleBundleDeployments(w http.ResponseWriter, r *http.Request) {
+	deployments, err := a.fleet.listBundleDeployments(r.Context())
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	clusters, err := a.fleet.listClusters(r.Context())
+	if err != nil {
+		a.logger.Warn("cluster names unavailable for BundleDeployments", "error", err)
+	}
+	clusterNames := clusterNamesByNamespace(clusters)
+	views := make([]BundleDeploymentView, 0, len(deployments))
+	for _, deployment := range deployments {
+		views = append(views, bundleDeploymentView(deployment, clusterNames[deployment.Metadata.Namespace]))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": views})
+}
+
+func (a *App) handleBundleDeploymentDetail(w http.ResponseWriter, r *http.Request) {
+	namespace, name := r.PathValue("namespace"), r.PathValue("name")
+	if namespace == "" || name == "" {
+		writeError(w, http.StatusBadRequest, errors.New("namespace and name are required"))
+		return
+	}
+	deployment, err := a.fleet.getBundleDeployment(r.Context(), namespace, name)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	clusters, err := a.fleet.listClusters(r.Context())
+	if err != nil {
+		a.logger.Warn("cluster name unavailable for BundleDeployment", "namespace", namespace, "name", name, "error", err)
+	}
+	writeJSON(w, http.StatusOK, bundleDeploymentDetailView(deployment, clusterNamesByNamespace(clusters)[namespace]))
 }
 
 func (a *App) authorizeReconcile(w http.ResponseWriter, r *http.Request) bool {
