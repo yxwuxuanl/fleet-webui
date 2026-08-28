@@ -3,6 +3,7 @@ import {
   RiGitRepositoryLine,
   RiSearchLine,
 } from "@remixicon/react";
+import { useMemo, useState } from "react";
 import type { Key } from "react-aria-components";
 import { Input } from "@/components/base/input/input";
 import { Pagination } from "@/components/base/pagination/pagination";
@@ -17,6 +18,11 @@ import {
 } from "@/components/base/table/table";
 import { bundleID, dateLabel, shortCommit } from "@/src/lib/format";
 import type { BundleView, GitRepoView } from "@/src/types";
+import {
+  ActivitySortButton,
+  compareActivity,
+  type ActivitySortDirection,
+} from "@/src/components/activity-sort-button";
 import { StatusChip } from "@/src/components/status-chip";
 
 const PAGE_SIZE = 10;
@@ -68,8 +74,24 @@ export function BundleTable({
   onPageChange: (page: number) => void;
   onOpen: (bundle: BundleView) => void;
 }) {
-  const totalPages = Math.max(1, Math.ceil(bundles.length / PAGE_SIZE));
-  const pageItems = bundles.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const [activitySort, setActivitySort] =
+    useState<ActivitySortDirection>(null);
+  const sortedBundles = useMemo(() => {
+    if (!activitySort) return bundles;
+    return [...bundles].sort(
+      (left, right) =>
+        compareActivity(
+          left.lastActivity,
+          right.lastActivity,
+          activitySort,
+        ) || left.name.localeCompare(right.name),
+    );
+  }, [activitySort, bundles]);
+  const totalPages = Math.max(1, Math.ceil(sortedBundles.length / PAGE_SIZE));
+  const pageItems = sortedBundles.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE,
+  );
   const changeKey = (setter: (value: string) => void) => (key: Key | null) =>
     setter(String(key ?? "all"));
   return (
@@ -132,7 +154,16 @@ export function BundleTable({
                 <TableColumn>Health</TableColumn>
                 <TableColumn>State</TableColumn>
                 <TableColumn>Targets</TableColumn>
-                <TableColumn>Last activity</TableColumn>
+                <TableColumn>
+                  <ActivitySortButton
+                    direction={activitySort}
+                    label="Last activity"
+                    onChange={(direction) => {
+                      setActivitySort(direction);
+                      onPageChange(1);
+                    }}
+                  />
+                </TableColumn>
                 <TableColumn aria-label="Open" />
               </TableHeader>
               <TableBody>
@@ -239,6 +270,19 @@ export function RepositoryTable({
   workspaces: string[];
   onOpen: (repo: GitRepoView) => void;
 }) {
+  const [activitySort, setActivitySort] =
+    useState<ActivitySortDirection>(null);
+  const sortedRepositories = useMemo(() => {
+    if (!activitySort) return repositories;
+    return [...repositories].sort(
+      (left, right) =>
+        compareActivity(
+          left.latestActivity,
+          right.latestActivity,
+          activitySort,
+        ) || left.name.localeCompare(right.name),
+    );
+  }, [activitySort, repositories]);
   const changeKey = (key: Key | null) =>
     onWorkspaceChange(String(key ?? "all"));
   return (
@@ -274,7 +318,7 @@ export function RepositoryTable({
           </Select>
         </div>
       </div>
-      {!repositories.length ? (
+      {!sortedRepositories.length ? (
         <EmptyState
           title="No repositories found"
           description="Adjust the search or workspace filter."
@@ -289,11 +333,17 @@ export function RepositoryTable({
                 <TableColumn>Branch</TableColumn>
                 <TableColumn>Sync state</TableColumn>
                 <TableColumn>Synced commit</TableColumn>
-                <TableColumn>Latest activity</TableColumn>
+                <TableColumn>
+                  <ActivitySortButton
+                    direction={activitySort}
+                    label="Latest activity"
+                    onChange={setActivitySort}
+                  />
+                </TableColumn>
                 <TableColumn aria-label="Open" />
               </TableHeader>
               <TableBody>
-                {repositories.map((repo) => (
+                {sortedRepositories.map((repo) => (
                   <TableRow
                     key={`${repo.namespace}/${repo.name}`}
                     id={`${repo.namespace}/${repo.name}`}
@@ -337,7 +387,7 @@ export function RepositoryTable({
             </Table>
           </div>
           <div className="divide-y divide-border-primary md:hidden">
-            {repositories.map((repo) => (
+            {sortedRepositories.map((repo) => (
               <button
                 key={`${repo.namespace}/${repo.name}`}
                 type="button"

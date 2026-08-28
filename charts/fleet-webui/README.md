@@ -64,6 +64,29 @@ helm upgrade --install fleet-webui ./charts/fleet-webui \
   --set ntfy.existingSecret=fleet-webui-ntfy
 ```
 
+## Managed object YAML
+
+The Bundle drawer always lists the Kubernetes objects reported in `BundleDeployment.status.resources`. Live YAML is opt-in because Kubernetes RBAC must grant `get` for arbitrary resource kinds. The API only accepts objects present in the selected BundleDeployment and redacts Secret `data`, `stringData`, and `binaryData` before returning YAML.
+
+For objects deployed to the same Kubernetes API as Fleet WebUI:
+
+```sh
+helm upgrade --install fleet-webui ./charts/fleet-webui \
+  --namespace cattle-fleet-system \
+  --set managedObjects.enabled=true
+```
+
+For remote Fleet clusters, also allow the server to read the kubeconfig Secret referenced by each Fleet Cluster:
+
+```sh
+helm upgrade --install fleet-webui ./charts/fleet-webui \
+  --namespace cattle-fleet-system \
+  --set managedObjects.enabled=true \
+  --set managedObjects.downstreamKubeconfigs=true
+```
+
+Enabling managed object YAML grants the WebUI ServiceAccount get-only access to arbitrary Kubernetes resource kinds, including Secrets. Enable it only for a private, HTTPS-protected console with tightly controlled access.
+
 ## Common values
 
 | Value | Default | Description |
@@ -73,6 +96,8 @@ helm upgrade --install fleet-webui ./charts/fleet-webui \
 | `rbac.create` | `true` | Create the ClusterRole and ClusterRoleBinding. |
 | `fleet.pageSize` | `250` | Maximum Fleet resources requested per upstream page. |
 | `fleet.cacheTTLSeconds` | `10` | Shared in-process list cache lifetime. |
+| `managedObjects.enabled` | `false` | Enable live YAML for Bundle-managed objects and add get-only dynamic-resource RBAC. |
+| `managedObjects.downstreamKubeconfigs` | `false` | Read Fleet Cluster kubeconfig Secrets to retrieve YAML from remote clusters. |
 | `reconcileAuth.existingSecret` | empty | Secret that enables authenticated reconcile and Bundle patch RBAC. |
 | `reconcileAuth.tokenKey` | `token` | Key containing the reconcile Bearer token. |
 | `ntfy.enabled` | `false` | Configure the fixed ntfy channel. |

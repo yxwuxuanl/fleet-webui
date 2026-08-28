@@ -4,6 +4,7 @@ import { Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
 import { Button } from "@/components/base/buttons/button";
 import { CloseButton } from "@/components/base/buttons/close-button";
 import { Input } from "@/components/base/input/input";
+import { ManagedObjectsPanel } from "@/src/components/managed-objects";
 import { StatusChip } from "@/src/components/status-chip";
 import { api } from "@/src/lib/api";
 import { bundleID, dateLabel, shortCommit } from "@/src/lib/format";
@@ -245,6 +246,7 @@ export function BundleDetailDrawer({
               </div>
             </section>
           ) : null}
+          <ManagedObjectsPanel bundle={bundle} active={open} />
           <section>
             <h3 className="mb-3 text-body-medium text-text-primary">
               Conditions

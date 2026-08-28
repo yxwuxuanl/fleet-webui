@@ -46,6 +46,11 @@ spec:
         - name: fleet-webui
           image: ghcr.io/replace-me/fleet-webui:latest
           imagePullPolicy: IfNotPresent
+          env:
+            - name: MANAGED_OBJECTS_YAML_ENABLED
+              value: "false"
+            - name: MANAGED_OBJECTS_DOWNSTREAM_KUBECONFIGS
+              value: "false"
           ports:
             - name: http
               containerPort: 8080

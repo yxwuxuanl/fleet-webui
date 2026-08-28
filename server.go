@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/json"
@@ -8,6 +9,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
 )
 
@@ -26,12 +28,14 @@ func (a *App) routes() http.Handler {
 	mux.HandleFunc("GET /api/health", a.handleHealth)
 	mux.HandleFunc("GET /api/bundles", a.handleBundles)
 	mux.HandleFunc("GET /api/bundles/{namespace}/{name}", a.handleBundleDetail)
+	mux.HandleFunc("GET /api/bundles/{namespace}/{name}/managed-objects", a.handleManagedObjects)
 	mux.HandleFunc("GET /api/gitrepos", a.handleGitRepos)
 	mux.HandleFunc("GET /api/gitrepos/{namespace}/{name}", a.handleGitRepoDetail)
 	mux.HandleFunc("GET /api/clusters", a.handleClusters)
 	mux.HandleFunc("GET /api/clusters/{namespace}/{name}", a.handleClusterDetail)
 	mux.HandleFunc("GET /api/bundledeployments", a.handleBundleDeployments)
 	mux.HandleFunc("GET /api/bundledeployments/{namespace}/{name}", a.handleBundleDeploymentDetail)
+	mux.HandleFunc("GET /api/bundledeployments/{namespace}/{name}/managed-object", a.handleManagedObjectYAML)
 	mux.HandleFunc("POST /api/bundles/{namespace}/{name}/reconcile", a.handleReconcile)
 
 	staticRoot := "web"
@@ -67,12 +71,133 @@ func writeError(w http.ResponseWriter, status int, err error) {
 
 func (a *App) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"mode":                   a.fleet.connectionMode,
-		"connectionError":        errorMessage(a.fleet.ready()),
-		"notificationConfigured": a.config.NtfyBaseURL != "" && a.config.NtfyTopic != "",
-		"reconcileEnabled":       a.config.ReconcileAuthToken != "",
-		"reconcileAuthRequired":  true,
+		"mode":                      a.fleet.connectionMode,
+		"connectionError":           errorMessage(a.fleet.ready()),
+		"notificationConfigured":    a.config.NtfyBaseURL != "" && a.config.NtfyTopic != "",
+		"reconcileEnabled":          a.config.ReconcileAuthToken != "",
+		"reconcileAuthRequired":     true,
+		"managedObjectsYAMLEnabled": a.config.ManagedObjectsEnabled,
 	})
+}
+
+func managedObjectView(deployment BundleDeployment, cluster string, resource BundleDeploymentResource) ManagedObjectView {
+	return ManagedObjectView{
+		DeploymentName: deployment.Metadata.Name, DeploymentNamespace: deployment.Metadata.Namespace,
+		Cluster: cluster, APIVersion: resource.APIVersion, Kind: resource.Kind,
+		Namespace: resource.Namespace, Name: resource.Name, CreatedAt: timestamp(resource.CreatedAt),
+	}
+}
+
+func (a *App) handleManagedObjects(w http.ResponseWriter, r *http.Request) {
+	namespace, name := r.PathValue("namespace"), r.PathValue("name")
+	if namespace == "" || name == "" {
+		writeError(w, http.StatusBadRequest, errors.New("namespace and name are required"))
+		return
+	}
+	deployments, err := a.fleet.listBundleDeployments(r.Context())
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	clusters, err := a.fleet.listClusters(r.Context())
+	if err != nil {
+		a.logger.Warn("cluster names unavailable for managed objects", "error", err)
+	}
+	clusterNames := clusterNamesByNamespace(clusters)
+	items := make([]ManagedObjectView, 0)
+	for _, deployment := range deployments {
+		if deployment.Metadata.Labels["fleet.cattle.io/bundle-name"] != name || deployment.Metadata.Labels["fleet.cattle.io/bundle-namespace"] != namespace {
+			continue
+		}
+		cluster := clusterNames[deployment.Metadata.Namespace]
+		for _, resource := range deployment.Status.Resources {
+			items = append(items, managedObjectView(deployment, cluster, resource))
+		}
+	}
+	sort.SliceStable(items, func(left, right int) bool {
+		leftKey := items[left].Cluster + "\x00" + items[left].Kind + "\x00" + items[left].Namespace + "\x00" + items[left].Name
+		rightKey := items[right].Cluster + "\x00" + items[right].Kind + "\x00" + items[right].Namespace + "\x00" + items[right].Name
+		return leftKey < rightKey
+	})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items": items, "yamlEnabled": a.config.ManagedObjectsEnabled,
+	})
+}
+
+func requestedManagedObject(r *http.Request, deployment BundleDeployment) (BundleDeploymentResource, error) {
+	requested := BundleDeploymentResource{
+		APIVersion: r.URL.Query().Get("apiVersion"), Kind: r.URL.Query().Get("kind"),
+		Namespace: r.URL.Query().Get("namespace"), Name: r.URL.Query().Get("name"),
+	}
+	if requested.APIVersion == "" || requested.Kind == "" || requested.Name == "" {
+		return BundleDeploymentResource{}, errors.New("apiVersion, kind and name are required")
+	}
+	for _, resource := range deployment.Status.Resources {
+		if resource.APIVersion == requested.APIVersion && resource.Kind == requested.Kind && resource.Namespace == requested.Namespace && resource.Name == requested.Name {
+			return resource, nil
+		}
+	}
+	return BundleDeploymentResource{}, errManagedObjectNotIndexed
+}
+
+func (a *App) clusterForDeployment(ctx context.Context, deployment BundleDeployment) (Cluster, string, error) {
+	clusterNamespace := deployment.Metadata.Labels["fleet.cattle.io/cluster-namespace"]
+	clusterName := deployment.Metadata.Labels["fleet.cattle.io/cluster"]
+	if clusterNamespace != "" && clusterName != "" {
+		cluster, err := a.fleet.getCluster(ctx, clusterNamespace, clusterName)
+		return cluster, clusterNamespace + "/" + clusterName, err
+	}
+	clusters, err := a.fleet.listClusters(ctx)
+	if err != nil {
+		return Cluster{}, "", err
+	}
+	for _, cluster := range clusters {
+		if cluster.Status.Namespace == deployment.Metadata.Namespace {
+			return cluster, cluster.Metadata.Namespace + "/" + cluster.Metadata.Name, nil
+		}
+	}
+	return Cluster{}, "", errors.New("target Fleet Cluster was not found")
+}
+
+func (a *App) handleManagedObjectYAML(w http.ResponseWriter, r *http.Request) {
+	namespace, name := r.PathValue("namespace"), r.PathValue("name")
+	if namespace == "" || name == "" {
+		writeError(w, http.StatusBadRequest, errors.New("namespace and name are required"))
+		return
+	}
+	deployment, err := a.fleet.getBundleDeployment(r.Context(), namespace, name)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	resource, err := requestedManagedObject(r, deployment)
+	if err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, errManagedObjectNotIndexed) {
+			status = http.StatusNotFound
+		}
+		writeError(w, status, err)
+		return
+	}
+	cluster, clusterName, err := a.clusterForDeployment(r.Context(), deployment)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	yamlValue, redacted, err := a.fleet.managedObjectYAML(r.Context(), cluster, resource)
+	if err != nil {
+		status := http.StatusBadGateway
+		if errors.Is(err, errManagedObjectsDisabled) {
+			status = http.StatusServiceUnavailable
+		}
+		writeError(w, status, err)
+		return
+	}
+	view := ManagedObjectYAMLView{
+		ManagedObjectView: managedObjectView(deployment, clusterName, resource),
+		YAML:              yamlValue, Redacted: redacted,
+	}
+	writeJSON(w, http.StatusOK, view)
 }
 
 func errorMessage(err error) string {

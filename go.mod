@@ -2,7 +2,10 @@ module fleet-webui
 
 go 1.27.0
 
-require k8s.io/client-go v0.36.4
+require (
+	k8s.io/client-go v0.36.4
+	sigs.k8s.io/yaml v1.6.0
+)
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -29,5 +32,4 @@ require (
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.3 // indirect
-	sigs.k8s.io/yaml v1.6.0 // indirect
 )

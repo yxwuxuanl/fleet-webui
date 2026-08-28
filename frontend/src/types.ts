@@ -4,6 +4,7 @@ export interface HealthStatus {
   notificationConfigured: boolean;
   reconcileEnabled: boolean;
   reconcileAuthRequired: boolean;
+  managedObjectsYAMLEnabled?: boolean;
 }
 
 export interface BundleView {
@@ -143,6 +144,22 @@ export interface BundleDeploymentDetail extends BundleDeploymentView {
   createdAt?: string;
   resourceVersion?: string;
   conditions: FleetCondition[];
+}
+
+export interface ManagedObjectView {
+  deploymentName: string;
+  deploymentNamespace: string;
+  cluster: string;
+  apiVersion: string;
+  kind: string;
+  namespace?: string;
+  name: string;
+  createdAt?: string;
+}
+
+export interface ManagedObjectYAML extends ManagedObjectView {
+  yaml: string;
+  redacted: boolean;
 }
 
 export interface LoadErrors {

@@ -92,9 +92,10 @@ type GitRepoResourceSummary struct {
 type Cluster struct {
 	Metadata Metadata `json:"metadata"`
 	Spec     struct {
-		Paused         bool   `json:"paused"`
-		ClientID       string `json:"clientID"`
-		AgentNamespace string `json:"agentNamespace"`
+		Paused           bool   `json:"paused"`
+		ClientID         string `json:"clientID"`
+		AgentNamespace   string `json:"agentNamespace"`
+		KubeConfigSecret string `json:"kubeConfigSecret"`
 	} `json:"spec"`
 	Status struct {
 		Namespace    string `json:"namespace"`
@@ -133,16 +134,18 @@ type BundleDeployment struct {
 			Monitored string `json:"monitored"`
 			State     string `json:"state"`
 		} `json:"display"`
-		SyncGeneration *int64                 `json:"syncGeneration"`
-		ResourceCounts GitRepoResourceSummary `json:"resourceCounts"`
-		Resources      []struct {
-			Kind       string    `json:"kind"`
-			APIVersion string    `json:"apiVersion"`
-			Namespace  string    `json:"namespace"`
-			Name       string    `json:"name"`
-			CreatedAt  time.Time `json:"createdAt"`
-		} `json:"resources"`
+		SyncGeneration *int64                     `json:"syncGeneration"`
+		ResourceCounts GitRepoResourceSummary     `json:"resourceCounts"`
+		Resources      []BundleDeploymentResource `json:"resources"`
 	} `json:"status"`
+}
+
+type BundleDeploymentResource struct {
+	Kind       string    `json:"kind"`
+	APIVersion string    `json:"apiVersion"`
+	Namespace  string    `json:"namespace"`
+	Name       string    `json:"name"`
+	CreatedAt  time.Time `json:"createdAt"`
 }
 
 type BundleView struct {
@@ -269,6 +272,23 @@ type BundleDeploymentDetailView struct {
 	CreatedAt           string                 `json:"createdAt,omitempty"`
 	ResourceVersion     string                 `json:"resourceVersion,omitempty"`
 	Conditions          []BundleConditionView  `json:"conditions"`
+}
+
+type ManagedObjectView struct {
+	DeploymentName      string `json:"deploymentName"`
+	DeploymentNamespace string `json:"deploymentNamespace"`
+	Cluster             string `json:"cluster"`
+	APIVersion          string `json:"apiVersion"`
+	Kind                string `json:"kind"`
+	Namespace           string `json:"namespace,omitempty"`
+	Name                string `json:"name"`
+	CreatedAt           string `json:"createdAt,omitempty"`
+}
+
+type ManagedObjectYAMLView struct {
+	ManagedObjectView
+	YAML     string `json:"yaml"`
+	Redacted bool   `json:"redacted"`
 }
 
 func latestTime(values ...*time.Time) time.Time {

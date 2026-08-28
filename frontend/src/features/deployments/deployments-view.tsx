@@ -28,6 +28,11 @@ import {
   Definition,
   DetailDrawer,
 } from "@/src/components/detail-primitives";
+import {
+  ActivitySortButton,
+  compareActivity,
+  type ActivitySortDirection,
+} from "@/src/components/activity-sort-button";
 import { ErrorBanner } from "@/src/components/error-banner";
 import { PageHeading } from "@/src/components/page-heading";
 import { RefreshControl } from "@/src/components/refresh-control";
@@ -206,6 +211,8 @@ export default function DeploymentsView({
   const deferredSearch = useDeferredValue(search);
   const [status, setStatus] = useState("all");
   const [cluster, setCluster] = useState("all");
+  const [activitySort, setActivitySort] =
+    useState<ActivitySortDirection>(null);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<BundleDeploymentView | null>(null);
   const clusters = useMemo(
@@ -240,9 +247,22 @@ export default function DeploymentsView({
           (cluster === "all" || deployment.cluster === cluster)
         );
       })
-      .sort((a, b) => a.bundleName.localeCompare(b.bundleName));
-  }, [cluster, deferredSearch, items, status]);
-  useEffect(() => setPage(1), [cluster, deferredSearch, status]);
+      .sort((a, b) => {
+        if (activitySort) {
+          const activityOrder = compareActivity(
+            a.lastActivity,
+            b.lastActivity,
+            activitySort,
+          );
+          if (activityOrder) return activityOrder;
+        }
+        return a.bundleName.localeCompare(b.bundleName);
+      });
+  }, [activitySort, cluster, deferredSearch, items, status]);
+  useEffect(
+    () => setPage(1),
+    [activitySort, cluster, deferredSearch, status],
+  );
   const ready = items.filter(
     (item) => statusKind(item.state) === "healthy",
   ).length;
@@ -325,7 +345,7 @@ export default function DeploymentsView({
           <div className="grid gap-2 sm:grid-cols-[minmax(220px,1fr)_150px_190px]">
             <Input
               aria-label="Search BundleDeployments"
-                placeholder="Search bundle or cluster"
+              placeholder="Search bundle or cluster"
               leadingIcon={RiSearchLine}
               value={search}
               onChange={setSearch}
@@ -372,7 +392,13 @@ export default function DeploymentsView({
                   <TableColumn>Deployed</TableColumn>
                   <TableColumn>Monitored</TableColumn>
                   <TableColumn>Release</TableColumn>
-                  <TableColumn>Last activity</TableColumn>
+                  <TableColumn>
+                    <ActivitySortButton
+                      direction={activitySort}
+                      label="Last activity"
+                      onChange={setActivitySort}
+                    />
+                  </TableColumn>
                   <TableColumn aria-label="Open" />
                 </TableHeader>
                 <TableBody>

@@ -9,6 +9,13 @@ rules:
   - apiGroups: ["fleet.cattle.io"]
     resources: ["bundles", "gitrepos", "clusters", "bundledeployments"]
     verbs: ["get", "list", "watch"]
+  {{- if .Values.managedObjects.enabled }}
+  # Live YAML is restricted by the API to objects indexed by a BundleDeployment.
+  # Kubernetes RBAC cannot express arbitrary dynamic kinds more narrowly than get-only.
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["get"]
+  {{- end }}
   {{- if .Values.reconcileAuth.existingSecret }}
   - apiGroups: ["fleet.cattle.io"]
     resources: ["bundles"]

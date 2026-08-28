@@ -1,6 +1,9 @@
 {{- if and .Values.ntfy.enabled (not .Values.ntfy.existingSecret) }}
 {{- fail "ntfy.existingSecret is required when ntfy.enabled is true" }}
 {{- end }}
+{{- if and .Values.managedObjects.downstreamKubeconfigs (not .Values.managedObjects.enabled) }}
+{{- fail "managedObjects.enabled must be true when managedObjects.downstreamKubeconfigs is true" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -50,6 +53,10 @@ spec:
               value: {{ .Values.fleet.pageSize | quote }}
             - name: FLEET_CACHE_TTL_SECONDS
               value: {{ .Values.fleet.cacheTTLSeconds | quote }}
+            - name: MANAGED_OBJECTS_YAML_ENABLED
+              value: {{ .Values.managedObjects.enabled | quote }}
+            - name: MANAGED_OBJECTS_DOWNSTREAM_KUBECONFIGS
+              value: {{ .Values.managedObjects.downstreamKubeconfigs | quote }}
             - name: HTTP_READ_HEADER_TIMEOUT_SECONDS
               value: {{ .Values.server.readHeaderTimeoutSeconds | quote }}
             - name: HTTP_READ_TIMEOUT_SECONDS

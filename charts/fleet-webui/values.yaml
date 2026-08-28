@@ -54,6 +54,10 @@ fleet:
   pageSize: 250
   cacheTTLSeconds: 10
 
+managedObjects:
+  enabled: false
+  downstreamKubeconfigs: false
+
 server:
   readHeaderTimeoutSeconds: 5
   readTimeoutSeconds: 15

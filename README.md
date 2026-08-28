@@ -41,6 +41,12 @@ The Fleet identity needs:
 
 List responses are fetched in chunks (`FLEET_PAGE_SIZE`, default `250`) and shared between browser sessions for a short interval (`FLEET_CACHE_TTL_SECONDS`, default `10`). This avoids a full upstream list request from every open dashboard while preserving complete results.
 
+## Managed Kubernetes objects
+
+The Bundle detail drawer lists objects reported by each matching `BundleDeployment.status.resources`. With `MANAGED_OBJECTS_YAML_ENABLED=true` (the local default), selecting an object reads its current YAML from the connected Kubernetes API. Requests are limited to objects Fleet already indexed for that BundleDeployment. Secret values and large applied-object annotations are redacted server-side.
+
+Set `MANAGED_OBJECTS_DOWNSTREAM_KUBECONFIGS=true` to read remote-cluster objects through the kubeconfig Secret referenced by the Fleet Cluster. This requires `get` access to those Secrets. The Helm chart keeps both live YAML and downstream kubeconfig access disabled by default because arbitrary Bundle kinds require broad get-only Kubernetes RBAC; enable them only for a private HTTPS console.
+
 ## Reconcile and notifications
 
 `POST /api/bundles/{namespace}/{name}/reconcile` is disabled unless `RECONCILE_AUTH_TOKEN` is configured. When enabled, callers must send that value as a Bearer token. The UI asks for it only when a user opens the reconcile dialog and stores it in `sessionStorage` only after a successful request, so it is discarded when the browser tab closes.

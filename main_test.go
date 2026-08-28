@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -71,8 +72,10 @@ func TestAPIListsAndReconcilesBundle(t *testing.T) {
 		ResourceVersion:   "10",
 		CreationTimestamp: updatedAt.Add(-30 * time.Minute),
 		Labels: map[string]string{
-			"fleet.cattle.io/bundle-name":      "platform-base",
-			"fleet.cattle.io/bundle-namespace": "platform",
+			"fleet.cattle.io/bundle-name":       "platform-base",
+			"fleet.cattle.io/bundle-namespace":  "platform",
+			"fleet.cattle.io/cluster":           "edge-a",
+			"fleet.cattle.io/cluster-namespace": "platform",
 		},
 	}}
 	bundleDeployment.Spec.DeploymentID = "deployment-3"
@@ -86,6 +89,10 @@ func TestAPIListsAndReconcilesBundle(t *testing.T) {
 	bundleDeployment.Status.ResourceCounts.Ready = 4
 	bundleDeployment.Status.ResourceCounts.DesiredReady = 4
 	bundleDeployment.Status.Conditions = []Condition{{Type: "Ready", Status: "True", LastUpdateTime: &updatedAt}}
+	bundleDeployment.Status.Resources = []BundleDeploymentResource{
+		{APIVersion: "apps/v1", Kind: "Deployment", Namespace: "platform-system", Name: "platform-base", CreatedAt: updatedAt.Add(-20 * time.Minute)},
+		{APIVersion: "v1", Kind: "Secret", Namespace: "platform-system", Name: "platform-token", CreatedAt: updatedAt.Add(-20 * time.Minute)},
+	}
 
 	fleetAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method + " " + r.URL.Path {
@@ -121,6 +128,22 @@ func TestAPIListsAndReconcilesBundle(t *testing.T) {
 			writeJSON(w, http.StatusOK, cluster)
 		case http.MethodGet + " /apis/fleet.cattle.io/v1alpha1/namespaces/cluster-platform-edge-a-12ab/bundledeployments/platform-base":
 			writeJSON(w, http.StatusOK, bundleDeployment)
+		case http.MethodGet + " /apis/apps/v1":
+			writeJSON(w, http.StatusOK, map[string]any{"resources": []map[string]any{{"name": "deployments", "kind": "Deployment", "namespaced": true}}})
+		case http.MethodGet + " /api/v1":
+			writeJSON(w, http.StatusOK, map[string]any{"resources": []map[string]any{{"name": "secrets", "kind": "Secret", "namespaced": true}}})
+		case http.MethodGet + " /apis/apps/v1/namespaces/platform-system/deployments/platform-base":
+			writeJSON(w, http.StatusOK, map[string]any{
+				"apiVersion": "apps/v1", "kind": "Deployment",
+				"metadata": map[string]any{"name": "platform-base", "namespace": "platform-system", "managedFields": []any{map[string]any{"manager": "fleet-agent"}}},
+				"spec":     map[string]any{"replicas": 2},
+			})
+		case http.MethodGet + " /api/v1/namespaces/platform-system/secrets/platform-token":
+			writeJSON(w, http.StatusOK, map[string]any{
+				"apiVersion": "v1", "kind": "Secret",
+				"metadata": map[string]any{"name": "platform-token", "namespace": "platform-system", "annotations": map[string]any{"kubectl.kubernetes.io/last-applied-configuration": "contains-sensitive-content"}},
+				"data":     map[string]any{"token": "c3VwZXItc2VjcmV0"},
+			})
 		default:
 			t.Errorf("unexpected Fleet API request: %s %s", r.Method, r.URL.Path)
 			http.NotFound(w, r)
@@ -129,11 +152,12 @@ func TestAPIListsAndReconcilesBundle(t *testing.T) {
 	defer fleetAPI.Close()
 
 	app := newApp(Config{
-		FleetAPIBaseURL:    fleetAPI.URL,
-		FleetAPIMode:       "kubernetes",
-		FleetSkipTLS:       true,
-		ReconcileAuthToken: "reconcile-secret",
-		RequestTimeout:     time.Second,
+		FleetAPIBaseURL:       fleetAPI.URL,
+		FleetAPIMode:          "kubernetes",
+		FleetSkipTLS:          true,
+		ManagedObjectsEnabled: true,
+		ReconcileAuthToken:    "reconcile-secret",
+		RequestTimeout:        time.Second,
 	})
 	server := httptest.NewServer(app.routes())
 	defer server.Close()
@@ -256,6 +280,59 @@ func TestAPIListsAndReconcilesBundle(t *testing.T) {
 	}
 	if detail.Name != bundle.Name || detail.Namespace != bundle.Namespace || len(detail.Conditions) == 0 {
 		t.Fatalf("unexpected detail: %#v", detail)
+	}
+
+	managedObjectsResponse, err := http.Get(server.URL + "/api/bundles/platform/platform-base/managed-objects")
+	if err != nil {
+		t.Fatalf("list managed objects: %v", err)
+	}
+	defer managedObjectsResponse.Body.Close()
+	var managedObjects struct {
+		Items []ManagedObjectView `json:"items"`
+	}
+	if err := json.NewDecoder(managedObjectsResponse.Body).Decode(&managedObjects); err != nil {
+		t.Fatalf("decode managed objects: %v", err)
+	}
+	if len(managedObjects.Items) != 2 || managedObjects.Items[0].Cluster != "platform/edge-a" {
+		t.Fatalf("unexpected managed objects: %#v", managedObjects.Items)
+	}
+
+	deploymentQuery := url.Values{"apiVersion": {"apps/v1"}, "kind": {"Deployment"}, "namespace": {"platform-system"}, "name": {"platform-base"}}
+	objectResponse, err := http.Get(server.URL + "/api/bundledeployments/cluster-platform-edge-a-12ab/platform-base/managed-object?" + deploymentQuery.Encode())
+	if err != nil {
+		t.Fatalf("get managed Deployment YAML: %v", err)
+	}
+	defer objectResponse.Body.Close()
+	var deploymentYAML ManagedObjectYAMLView
+	if err := json.NewDecoder(objectResponse.Body).Decode(&deploymentYAML); err != nil {
+		t.Fatalf("decode managed Deployment YAML: %v", err)
+	}
+	if !strings.Contains(deploymentYAML.YAML, "replicas: 2") || strings.Contains(deploymentYAML.YAML, "managedFields") {
+		t.Fatalf("unexpected managed Deployment YAML: %s", deploymentYAML.YAML)
+	}
+
+	secretQuery := url.Values{"apiVersion": {"v1"}, "kind": {"Secret"}, "namespace": {"platform-system"}, "name": {"platform-token"}}
+	secretResponse, err := http.Get(server.URL + "/api/bundledeployments/cluster-platform-edge-a-12ab/platform-base/managed-object?" + secretQuery.Encode())
+	if err != nil {
+		t.Fatalf("get managed Secret YAML: %v", err)
+	}
+	defer secretResponse.Body.Close()
+	var secretYAML ManagedObjectYAMLView
+	if err := json.NewDecoder(secretResponse.Body).Decode(&secretYAML); err != nil {
+		t.Fatalf("decode managed Secret YAML: %v", err)
+	}
+	if !secretYAML.Redacted || !strings.Contains(secretYAML.YAML, "<redacted>") || strings.Contains(secretYAML.YAML, "c3VwZXItc2VjcmV0") || strings.Contains(secretYAML.YAML, "contains-sensitive-content") {
+		t.Fatalf("managed Secret YAML was not safely redacted: %s", secretYAML.YAML)
+	}
+
+	unauthorizedObjectQuery := url.Values{"apiVersion": {"v1"}, "kind": {"ConfigMap"}, "namespace": {"platform-system"}, "name": {"not-managed"}}
+	unauthorizedObjectResponse, err := http.Get(server.URL + "/api/bundledeployments/cluster-platform-edge-a-12ab/platform-base/managed-object?" + unauthorizedObjectQuery.Encode())
+	if err != nil {
+		t.Fatalf("request unmanaged object: %v", err)
+	}
+	defer unauthorizedObjectResponse.Body.Close()
+	if unauthorizedObjectResponse.StatusCode != http.StatusNotFound {
+		t.Fatalf("unmanaged object status = %d, want %d", unauthorizedObjectResponse.StatusCode, http.StatusNotFound)
 	}
 
 	unauthorized, err := http.NewRequest(http.MethodPost, server.URL+"/api/bundles/"+bundle.Namespace+"/"+bundle.Name+"/reconcile", nil)
