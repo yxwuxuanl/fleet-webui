@@ -3,7 +3,6 @@ const savedRefreshIntervalValue = window.localStorage.getItem('fleet-webui.refre
 const savedRefreshInterval = savedRefreshIntervalValue === null ? undefined : Number(savedRefreshIntervalValue);
 const browserNotificationStorageKey = 'fleet-webui.browserNotificationsEnabled';
 const savedBrowserNotificationsEnabled = window.localStorage.getItem(browserNotificationStorageKey) === 'true';
-const reconcileTokenStorageKey = 'fleet-webui.reconcileToken';
 const bundleDeepLink = new URL(window.location.href).searchParams.get('bundle') || '';
 const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const browserDateTimeFormatter = new Intl.DateTimeFormat('en-CA', {
@@ -28,7 +27,7 @@ const state = {
   nextRefreshAt: null,
   isRefreshing: false,
   repositories: [],
-  health: { mode: 'unconfigured', notificationConfigured: false, connectionError: '', reconcileEnabled: false, reconcileAuthRequired: true },
+  health: { mode: 'unconfigured', notificationConfigured: false, connectionError: '', reconcileEnabled: false },
   loadErrors: { health: '', bundles: '', repositories: '' },
   selectedBundle: null,
   detailBundle: null,
@@ -36,7 +35,6 @@ const state = {
   bundleDetailRequestId: 0,
   gitRepoDetailRequestId: 0,
   pendingBundleDeepLink: bundleDeepLink,
-  reconcileToken: readReconcileToken(),
   browserNotificationsEnabled: savedBrowserNotificationsEnabled,
 };
 
@@ -68,8 +66,6 @@ const elements = {
   modalRoot: document.querySelector('#modal-root'),
   summary: document.querySelector('#reconcile-summary'),
   confirm: document.querySelector('#confirm-reconcile'),
-  reconcileToken: document.querySelector('#reconcile-token'),
-  reconcileTokenHint: document.querySelector('#reconcile-token-hint'),
   detailRoot: document.querySelector('#detail-root'),
   detailTitle: document.querySelector('#detail-title'),
   detailNamespace: document.querySelector('#detail-namespace'),
@@ -107,23 +103,6 @@ async function api(path, options = {}) {
     throw error;
   }
   return body;
-}
-
-function readReconcileToken() {
-  try {
-    return window.sessionStorage.getItem(reconcileTokenStorageKey) || '';
-  } catch {
-    return '';
-  }
-}
-
-function rememberReconcileToken(token) {
-  try {
-    if (token) window.sessionStorage.setItem(reconcileTokenStorageKey, token);
-    else window.sessionStorage.removeItem(reconcileTokenStorageKey);
-  } catch {
-    // The token remains available in memory when session storage is blocked.
-  }
 }
 
 function escapeHtml(value = '') {
@@ -354,10 +333,10 @@ function renderChrome() {
   elements.loadErrorBanner.hidden = loadIssues.length === 0;
   elements.loadErrorBanner.textContent = loadIssues.length ? `Some Fleet data is unavailable. ${loadIssues.join(' · ')}` : '';
   elements.notificationDetail.textContent = !state.health.reconcileEnabled
-    ? 'Manual reconcile is disabled until a server-side authorization token is configured.'
+    ? 'Manual reconcile is disabled by the server configuration.'
     : state.health.notificationConfigured
-      ? 'Every authorized manual reconcile posts to the configured ntfy channel.'
-      : 'ntfy is not configured; authorized reconciles run without delivery notifications.';
+      ? 'Every confirmed manual reconcile posts to the configured ntfy channel.'
+      : 'ntfy is not configured; confirmed reconciles run without delivery notifications.';
   elements.detailReconcile.disabled = !state.health.reconcileEnabled;
   renderBrowserNotifications();
 }
@@ -377,11 +356,9 @@ function openReconcile(id) {
     ['Commit', bundle.commit || '—'],
     ['Targets', bundle.targets || '—'],
   ].map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`).join('');
-  elements.reconcileToken.value = state.reconcileToken;
-  elements.reconcileTokenHint.textContent = 'Required for this write action. Saved only for this browser tab after a successful request.';
   elements.modalRoot.hidden = false;
   updateConfirmReconcileState();
-  (elements.reconcileToken.value ? elements.confirm : elements.reconcileToken).focus();
+  elements.confirm.focus();
 }
 
 function closeModal() {
@@ -391,7 +368,7 @@ function closeModal() {
 }
 
 function updateConfirmReconcileState() {
-  elements.confirm.disabled = !state.selectedBundle || !state.health.reconcileEnabled || !elements.reconcileToken.value.trim();
+  elements.confirm.disabled = !state.selectedBundle || !state.health.reconcileEnabled;
 }
 
 async function openBundleDetail(id) {
@@ -597,17 +574,13 @@ function consumeBundleDeepLink() {
 
 async function confirmReconcile() {
   const bundle = state.selectedBundle;
-  const token = elements.reconcileToken.value.trim();
-  if (!bundle || !token) return;
-  state.reconcileToken = token;
+  if (!bundle) return;
   elements.confirm.disabled = true;
   elements.confirm.textContent = 'Reconciling…';
   try {
     const result = await api(`/api/bundles/${encodeURIComponent(bundle.namespace)}/${encodeURIComponent(bundle.name)}/reconcile`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
     });
-    rememberReconcileToken(token);
     closeModal();
     const suffix = result.notification === 'sent' ? ' ntfy notified.' : result.notification === 'failed' ? ' Reconcile started, but ntfy delivery failed.' : ' Reconcile started; ntfy is not configured.';
     toast(`${bundle.name} reconcile requested (generation ${result.generation}).${suffix}`, result.notification === 'failed' ? 'warning' : 'success');
@@ -619,13 +592,7 @@ async function confirmReconcile() {
     );
     await loadData({ quiet: true });
   } catch (error) {
-    if (error.status === 401) {
-      state.reconcileToken = '';
-      rememberReconcileToken('');
-      elements.reconcileToken.value = '';
-      elements.reconcileTokenHint.textContent = 'That token was rejected. Enter the token configured on the server.';
-      elements.reconcileToken.focus();
-    } else if (error.status === 503) {
+    if (error.status === 503) {
       state.health.reconcileEnabled = false;
       closeModal();
       renderBundles();
@@ -634,13 +601,12 @@ async function confirmReconcile() {
     toast(error.message, 'error');
     notifyBrowser('Fleet reconcile request failed', `${bundle.namespace}/${bundle.name}: ${error.message}`, `fleet-reconcile-${bundle.namespace}-${bundle.name}`);
   } finally {
-    elements.confirm.textContent = 'Reconcile';
+    elements.confirm.textContent = 'Confirm reconcile';
     updateConfirmReconcileState();
   }
 }
 
 elements.confirm.addEventListener('click', confirmReconcile);
-elements.reconcileToken.addEventListener('input', updateConfirmReconcileState);
 elements.browserNotificationButton.addEventListener('click', toggleBrowserNotifications);
 elements.refresh.addEventListener('click', () => loadData());
 elements.refreshInterval.value = String(state.refreshIntervalSeconds);

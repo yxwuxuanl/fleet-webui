@@ -10,7 +10,7 @@ helm upgrade --install fleet-webui ./charts/fleet-webui \
   --create-namespace
 ```
 
-The chart creates a ClusterRole and ClusterRoleBinding so the WebUI can list Bundle and GitRepo resources across namespaces. The default install is read-only; Bundle patch permission is added only when an authenticated reconcile Secret is configured.
+The chart creates a ClusterRole and ClusterRoleBinding so the WebUI can list Fleet resources across namespaces. Manual reconcile is enabled by default and adds Bundle `patch` permission.
 
 If the Alibaba Cloud registry is private, create an image-pull Secret and set `imagePullSecrets`:
 
@@ -25,24 +25,17 @@ helm upgrade --install fleet-webui ./charts/fleet-webui \
   --set 'imagePullSecrets[0].name=aliyun-registry'
 ```
 
-## Authenticated reconcile
+## Manual reconcile
 
-Create a Secret containing a long random reconcile token:
-
-```sh
-kubectl -n cattle-fleet-system create secret generic fleet-webui-reconcile \
-  --from-literal=token="$(openssl rand -hex 32)"
-```
-
-Enable manual reconcile with that Secret:
+Opening reconcile displays a confirmation dialog. Confirming it increments the Bundle's `spec.forceSyncGeneration`; no browser or server-side reconcile token is required.
 
 ```sh
 helm upgrade --install fleet-webui ./charts/fleet-webui \
   --namespace cattle-fleet-system \
-  --set reconcileAuth.existingSecret=fleet-webui-reconcile
+  --set reconcile.enabled=false
 ```
 
-Users enter the same token in the reconcile dialog. Serve the application over HTTPS so the Bearer token is protected in transit. If `reconcileAuth.existingSecret` is empty, the API and UI remain read-only and the chart does not grant Bundle patch permission.
+The example above disables the endpoint and removes Bundle `patch` permission for a read-only installation. Because the reconcile endpoint itself has no authentication challenge, expose the console only through your private access-control layer.
 
 ## ntfy notifications
 
@@ -98,8 +91,7 @@ Enabling managed object YAML grants the WebUI ServiceAccount get-only access to 
 | `fleet.cacheTTLSeconds` | `10` | Shared in-process list cache lifetime. |
 | `managedObjects.enabled` | `false` | Enable live YAML for Bundle-managed objects and add get-only dynamic-resource RBAC. |
 | `managedObjects.downstreamKubeconfigs` | `false` | Read Fleet Cluster kubeconfig Secrets to retrieve YAML from remote clusters. |
-| `reconcileAuth.existingSecret` | empty | Secret that enables authenticated reconcile and Bundle patch RBAC. |
-| `reconcileAuth.tokenKey` | `token` | Key containing the reconcile Bearer token. |
+| `reconcile.enabled` | `true` | Enable confirmation-based manual reconcile and Bundle patch RBAC. |
 | `ntfy.enabled` | `false` | Configure the fixed ntfy channel. |
 | `ntfy.existingSecret` | empty | Secret containing `ntfy.tokenKey`. |
 | `ingress.enabled` | `false` | Create an Ingress resource. |

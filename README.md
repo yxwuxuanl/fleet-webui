@@ -1,6 +1,6 @@
 # Fleet WebUI
 
-A Go-based web console for Rancher Fleet. It lists Bundle and GitRepo status, can request an authenticated Bundle reconcile, and sends a fixed-topic ntfy notification after Fleet accepts that request.
+A Go-based web console for Rancher Fleet. It lists Fleet status, can request a confirmed Bundle reconcile, and sends a fixed-topic ntfy notification after Fleet accepts that request.
 
 ## Run locally
 
@@ -8,7 +8,7 @@ A Go-based web console for Rancher Fleet. It lists Bundle and GitRepo status, ca
 go run .
 ```
 
-Open `http://localhost:8080`. Configure a local kubeconfig or direct Fleet API endpoint before opening the console. If no Fleet connection is available, the UI keeps a visible connection error instead of sample resources. Manual reconcile is read-only until `RECONCILE_AUTH_TOKEN` is set.
+Open `http://localhost:8080`. Configure a local kubeconfig or direct Fleet API endpoint before opening the console. If no Fleet connection is available, the UI keeps a visible connection error instead of sample resources. Manual reconcile is enabled by default; set `RECONCILE_ENABLED=false` for read-only mode.
 
 ## Connect Rancher Fleet
 
@@ -28,7 +28,7 @@ go run .
 
 When running in a Pod, the app detects `KUBERNETES_SERVICE_HOST` and `KUBERNETES_SERVICE_PORT` and uses the mounted ServiceAccount token and CA at the standard Kubernetes paths. No connection-mode environment variable is required.
 
-The included [RBAC manifest](deploy/rbac.yaml) is read-only and grants only the permissions needed to list Fleet resources. The Helm chart adds Bundle `patch` permission only when authenticated reconcile is enabled. Bind either deployment only to the namespaces/clusters the console should manage.
+The included [RBAC manifest](deploy/rbac.yaml) grants the list/read permissions needed by the console plus Bundle `patch` for manual reconcile. The Helm chart removes Bundle `patch` permission when `reconcile.enabled=false`. Bind either deployment only to the namespaces/clusters the console should manage.
 
 ### Direct Rancher API
 
@@ -49,11 +49,9 @@ Set `MANAGED_OBJECTS_DOWNSTREAM_KUBECONFIGS=true` to read remote-cluster objects
 
 ## Reconcile and notifications
 
-`POST /api/bundles/{namespace}/{name}/reconcile` is disabled unless `RECONCILE_AUTH_TOKEN` is configured. When enabled, callers must send that value as a Bearer token. The UI asks for it only when a user opens the reconcile dialog and stores it in `sessionStorage` only after a successful request, so it is discarded when the browser tab closes.
+`POST /api/bundles/{namespace}/{name}/reconcile` does not require a reconcile token. The UI presents a second confirmation dialog before sending the request. Set `RECONCILE_ENABLED=false` to disable the endpoint and run the console in read-only mode.
 
-Use a long random token, deliver it through a secret manager, and expose the application over HTTPS. The shared token authorizes the write operation; proxy-provided user headers are deliberately not trusted as identity.
-
-After authorization, the endpoint reads the current Bundle, increments `spec.forceSyncGeneration`, and patches it with its current `resourceVersion`. The operation retries conflicts up to three times.
+After confirmation, the endpoint reads the current Bundle, increments `spec.forceSyncGeneration`, and patches it with its current `resourceVersion`. The operation retries conflicts up to three times. Because the endpoint has no authentication challenge of its own, keep Fleet WebUI behind your private access-control layer.
 
 Once Fleet accepts the patch, the server posts a JSON message to the fixed `NTFY_TOPIC`. A failed ntfy delivery never rolls back a reconcile that has already been accepted. The API returns this as `notification: "failed"` so the UI can surface it.
 

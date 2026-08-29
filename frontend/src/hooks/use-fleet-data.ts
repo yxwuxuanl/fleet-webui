@@ -12,7 +12,6 @@ const initialHealth: HealthStatus = {
   connectionError: "",
   notificationConfigured: false,
   reconcileEnabled: false,
-  reconcileAuthRequired: true,
 };
 
 export function useFleetData(loadResources: boolean) {

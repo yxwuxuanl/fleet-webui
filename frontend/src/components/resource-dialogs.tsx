@@ -3,7 +3,6 @@ import { RiGitRepositoryLine, RiRefreshLine } from "@remixicon/react";
 import { Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
 import { Button } from "@/components/base/buttons/button";
 import { CloseButton } from "@/components/base/buttons/close-button";
-import { Input } from "@/components/base/input/input";
 import { ManagedObjectsPanel } from "@/src/components/managed-objects";
 import { StatusChip } from "@/src/components/status-chip";
 import { api } from "@/src/lib/api";
@@ -399,9 +398,6 @@ export function ReconcileDialog({
   onOpenChange: (open: boolean) => void;
   onCompleted: (result: ReconcileResult) => void;
 }) {
-  const [token, setToken] = useState(
-    () => window.sessionStorage.getItem("fleet-webui.reconcileToken") ?? "",
-  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -412,10 +408,9 @@ export function ReconcileDialog({
     setBusy(true);
     setError("");
     try {
-      window.sessionStorage.setItem("fleet-webui.reconcileToken", token);
       const result = await api<ReconcileResult>(
         `/api/bundles/${encodeURIComponent(bundle.namespace)}/${encodeURIComponent(bundle.name)}/reconcile`,
-        { method: "POST", headers: { Authorization: `Bearer ${token}` } },
+        { method: "POST" },
       );
       onCompleted(result);
       onOpenChange(false);
@@ -453,22 +448,16 @@ export function ReconcileDialog({
           </div>
           <div className="space-y-4 p-5">
             <p className="text-body-regular text-text-secondary">
-              Request a new force-sync generation for{" "}
+              Confirm that you want to request a new force-sync generation for{" "}
               <strong className="text-text-primary">
                 {bundle ? bundleID(bundle) : "this bundle"}
               </strong>
               .
             </p>
-            <Input
-              label="Reconcile token"
-              type="password"
-              autoComplete="off"
-              value={token}
-              onChange={setToken}
-              placeholder="Enter the server token"
-              hint="Stored only in this browser session."
-              isRequired
-            />
+            <div className="rounded-xl border border-status-yellow-border bg-status-yellow-background p-3 text-body-regular text-status-yellow-text">
+              Fleet will increment <code>spec.forceSyncGeneration</code> and
+              reconcile this Bundle against its targets.
+            </div>
             {error ? (
               <div
                 role="alert"
@@ -484,10 +473,10 @@ export function ReconcileDialog({
             </Button>
             <Button
               leadingIcon={RiRefreshLine}
-              disabled={busy || !token.trim()}
+              disabled={busy}
               onClick={() => void submit()}
             >
-              {busy ? "Requesting…" : "Reconcile"}
+              {busy ? "Requesting…" : "Confirm reconcile"}
             </Button>
           </div>
         </Dialog>

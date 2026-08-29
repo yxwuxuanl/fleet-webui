@@ -16,7 +16,7 @@ rules:
     resources: ["*"]
     verbs: ["get"]
   {{- end }}
-  {{- if .Values.reconcileAuth.existingSecret }}
+  {{- if .Values.reconcile.enabled }}
   - apiGroups: ["fleet.cattle.io"]
     resources: ["bundles"]
     verbs: ["patch"]

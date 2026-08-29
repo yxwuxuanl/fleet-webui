@@ -65,13 +65,8 @@ spec:
               value: {{ .Values.server.writeTimeoutSeconds | quote }}
             - name: HTTP_IDLE_TIMEOUT_SECONDS
               value: {{ .Values.server.idleTimeoutSeconds | quote }}
-            {{- with .Values.reconcileAuth.existingSecret }}
-            - name: RECONCILE_AUTH_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ . }}
-                  key: {{ required "reconcileAuth.tokenKey is required when reconcileAuth.existingSecret is set" $.Values.reconcileAuth.tokenKey }}
-            {{- end }}
+            - name: RECONCILE_ENABLED
+              value: {{ .Values.reconcile.enabled | quote }}
             {{- with .Values.appBaseURL }}
             - name: APP_BASE_URL
               value: {{ . | quote }}

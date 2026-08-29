@@ -156,7 +156,7 @@ func TestAPIListsAndReconcilesBundle(t *testing.T) {
 		FleetAPIMode:          "kubernetes",
 		FleetSkipTLS:          true,
 		ManagedObjectsEnabled: true,
-		ReconcileAuthToken:    "reconcile-secret",
+		ReconcileEnabled:      true,
 		RequestTimeout:        time.Second,
 	})
 	server := httptest.NewServer(app.routes())
@@ -335,24 +335,10 @@ func TestAPIListsAndReconcilesBundle(t *testing.T) {
 		t.Fatalf("unmanaged object status = %d, want %d", unauthorizedObjectResponse.StatusCode, http.StatusNotFound)
 	}
 
-	unauthorized, err := http.NewRequest(http.MethodPost, server.URL+"/api/bundles/"+bundle.Namespace+"/"+bundle.Name+"/reconcile", nil)
-	if err != nil {
-		t.Fatalf("create unauthorized reconcile request: %v", err)
-	}
-	unauthorizedResponse, err := http.DefaultClient.Do(unauthorized)
-	if err != nil {
-		t.Fatalf("send unauthorized reconcile request: %v", err)
-	}
-	defer unauthorizedResponse.Body.Close()
-	if unauthorizedResponse.StatusCode != http.StatusUnauthorized || unauthorizedResponse.Header.Get("WWW-Authenticate") == "" {
-		t.Fatalf("unauthorized reconcile status = %d, authenticate = %q", unauthorizedResponse.StatusCode, unauthorizedResponse.Header.Get("WWW-Authenticate"))
-	}
-
 	request, err := http.NewRequest(http.MethodPost, server.URL+"/api/bundles/"+bundle.Namespace+"/"+bundle.Name+"/reconcile", nil)
 	if err != nil {
 		t.Fatalf("create reconcile request: %v", err)
 	}
-	request.Header.Set("Authorization", "Bearer reconcile-secret")
 	response, err = http.DefaultClient.Do(request)
 	if err != nil {
 		t.Fatalf("reconcile bundle: %v", err)
@@ -482,7 +468,7 @@ func TestBundleViewDerivesReadyFromSummary(t *testing.T) {
 	}
 }
 
-func TestReconcileIsReadOnlyWithoutServerToken(t *testing.T) {
+func TestReconcileCanBeDisabled(t *testing.T) {
 	app := newApp(Config{})
 
 	healthRecorder := httptest.NewRecorder()
@@ -494,7 +480,7 @@ func TestReconcileIsReadOnlyWithoutServerToken(t *testing.T) {
 		t.Fatalf("decode health: %v", err)
 	}
 	if health.ReconcileEnabled {
-		t.Fatal("reconcile should be disabled without RECONCILE_AUTH_TOKEN")
+		t.Fatal("reconcile should be disabled by configuration")
 	}
 
 	reconcileRecorder := httptest.NewRecorder()

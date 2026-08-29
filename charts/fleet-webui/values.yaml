@@ -64,9 +64,8 @@ server:
   writeTimeoutSeconds: 90
   idleTimeoutSeconds: 60
 
-reconcileAuth:
-  existingSecret: ""
-  tokenKey: token
+reconcile:
+  enabled: true
 
 ntfy:
   enabled: false

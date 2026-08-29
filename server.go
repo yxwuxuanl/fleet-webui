@@ -2,15 +2,12 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"io/fs"
 	"log/slog"
 	"net/http"
 	"sort"
-	"strings"
 )
 
 type App struct {
@@ -74,8 +71,7 @@ func (a *App) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"mode":                      a.fleet.connectionMode,
 		"connectionError":           errorMessage(a.fleet.ready()),
 		"notificationConfigured":    a.config.NtfyBaseURL != "" && a.config.NtfyTopic != "",
-		"reconcileEnabled":          a.config.ReconcileAuthToken != "",
-		"reconcileAuthRequired":     true,
+		"reconcileEnabled":          a.config.ReconcileEnabled,
 		"managedObjectsYAMLEnabled": a.config.ManagedObjectsEnabled,
 	})
 }
@@ -334,24 +330,9 @@ func (a *App) handleBundleDeploymentDetail(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, bundleDeploymentDetailView(deployment, clusterNamesByNamespace(clusters)[namespace]))
 }
 
-func (a *App) authorizeReconcile(w http.ResponseWriter, r *http.Request) bool {
-	if a.config.ReconcileAuthToken == "" {
-		writeError(w, http.StatusServiceUnavailable, errors.New("manual reconcile is disabled; configure RECONCILE_AUTH_TOKEN on the server"))
-		return false
-	}
-	scheme, token, ok := strings.Cut(strings.TrimSpace(r.Header.Get("Authorization")), " ")
-	providedToken := sha256.Sum256([]byte(strings.TrimSpace(token)))
-	expectedToken := sha256.Sum256([]byte(a.config.ReconcileAuthToken))
-	if !ok || !strings.EqualFold(scheme, "Bearer") || subtle.ConstantTimeCompare(providedToken[:], expectedToken[:]) != 1 {
-		w.Header().Set("WWW-Authenticate", `Bearer realm="fleet-webui"`)
-		writeError(w, http.StatusUnauthorized, errors.New("a valid reconcile token is required"))
-		return false
-	}
-	return true
-}
-
 func (a *App) handleReconcile(w http.ResponseWriter, r *http.Request) {
-	if !a.authorizeReconcile(w, r) {
+	if !a.config.ReconcileEnabled {
+		writeError(w, http.StatusServiceUnavailable, errors.New("manual reconcile is disabled by server configuration"))
 		return
 	}
 	namespace, name := r.PathValue("namespace"), r.PathValue("name")
@@ -369,7 +350,7 @@ func (a *App) handleReconcile(w http.ResponseWriter, r *http.Request) {
 
 	notification := "not-configured"
 	if a.config.NtfyBaseURL != "" && a.config.NtfyTopic != "" {
-		if err := a.notifyReconcile(r.Context(), bundle, generation, "authenticated client"); err != nil {
+		if err := a.notifyReconcile(r.Context(), bundle, generation, "console user"); err != nil {
 			a.logger.Error("ntfy notification failed", "bundle", namespace+"/"+name, "error", err)
 			notification = "failed"
 		} else {

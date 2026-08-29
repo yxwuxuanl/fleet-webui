@@ -20,8 +20,8 @@ func main() {
 	if config.NtfyBaseURL != "" && config.NtfyTopic != "" {
 		app.logger.Info("ntfy notification channel configured", "url", config.NtfyBaseURL, "topic", config.NtfyTopic)
 	}
-	if config.ReconcileAuthToken == "" {
-		app.logger.Warn("manual reconcile is disabled until RECONCILE_AUTH_TOKEN is configured")
+	if !config.ReconcileEnabled {
+		app.logger.Warn("manual reconcile is disabled by RECONCILE_ENABLED")
 	}
 	server := &http.Server{
 		Addr:              config.ListenAddr,

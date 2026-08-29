@@ -19,7 +19,7 @@ type Config struct {
 	KubeContext               string
 	ManagedObjectsEnabled     bool
 	ManagedObjectsKubeconfigs bool
-	ReconcileAuthToken        string
+	ReconcileEnabled          bool
 	NtfyBaseURL               string
 	NtfyTopic                 string
 	NtfyToken                 string
@@ -48,7 +48,7 @@ func loadConfig() Config {
 		KubeContext:               strings.TrimSpace(os.Getenv("FLEET_KUBECONTEXT")),
 		ManagedObjectsEnabled:     envBool("MANAGED_OBJECTS_YAML_ENABLED", true),
 		ManagedObjectsKubeconfigs: envBool("MANAGED_OBJECTS_DOWNSTREAM_KUBECONFIGS", false),
-		ReconcileAuthToken:        strings.TrimSpace(os.Getenv("RECONCILE_AUTH_TOKEN")),
+		ReconcileEnabled:          envBool("RECONCILE_ENABLED", true),
 		NtfyBaseURL:               strings.TrimRight(os.Getenv("NTFY_BASE_URL"), "/"),
 		NtfyTopic:                 os.Getenv("NTFY_TOPIC"),
 		NtfyToken:                 os.Getenv("NTFY_TOKEN"),

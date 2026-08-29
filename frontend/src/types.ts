@@ -3,7 +3,6 @@ export interface HealthStatus {
   connectionError: string;
   notificationConfigured: boolean;
   reconcileEnabled: boolean;
-  reconcileAuthRequired: boolean;
   managedObjectsYAMLEnabled?: boolean;
 }
 

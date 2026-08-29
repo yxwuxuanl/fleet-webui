@@ -19,14 +19,14 @@ export default function SettingsView({
       enabled: reconcileEnabled,
       enabledText: "Enabled",
       disabledText: "Disabled",
-      body: "Reconcile requests require a server-side bearer token. The browser keeps it in session storage only.",
+      body: "Reconcile requests require an explicit confirmation in the Bundle dialog. No browser token is required.",
     },
     {
       title: "ntfy delivery",
       enabled: notificationConfigured,
       enabledText: "Configured",
       disabledText: "Not configured",
-      body: "The backend can send the outcome of authenticated reconcile requests to a private ntfy topic.",
+      body: "The backend can send the outcome of confirmed reconcile requests to a private ntfy topic.",
     },
     {
       title: "Browser alerts",

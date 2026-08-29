@@ -121,15 +121,10 @@
         <button type="button" class="modal-close" aria-label="Close" data-close-modal><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
         <div class="modal-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.8-4.2L3 9M3 4v5h5M4 13a8 8 0 0 0 14.8 4.2L21 15M21 20v-5h-5"/></svg></div>
         <h2 id="modal-title">Reconcile bundle?</h2>
-        <p id="modal-description">Fleet will redeploy this bundle to its configured targets.</p>
+        <p id="modal-description">Confirm that Fleet should redeploy this bundle to its configured targets.</p>
         <dl id="reconcile-summary" class="reconcile-summary"></dl>
-        <label class="reconcile-token-field" for="reconcile-token">
-          <span>Reconcile token</span>
-          <input id="reconcile-token" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" />
-          <small id="reconcile-token-hint">Required for this write action.</small>
-        </label>
         <p class="modal-note">The configured ntfy channel is notified after Fleet accepts this request. This browser also receives an alert when enabled.</p>
-        <div class="modal-actions"><button type="button" class="button secondary" data-close-modal>Cancel</button><button type="button" class="button primary" id="confirm-reconcile">Reconcile</button></div>
+        <div class="modal-actions"><button type="button" class="button secondary" data-close-modal>Cancel</button><button type="button" class="button primary" id="confirm-reconcile">Confirm reconcile</button></div>
       </section>
     </div>
 
