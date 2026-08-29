@@ -28,11 +28,15 @@ func (a *App) routes() http.Handler {
 	mux.HandleFunc("GET /api/bundles/{namespace}/{name}/managed-objects", a.handleManagedObjects)
 	mux.HandleFunc("GET /api/gitrepos", a.handleGitRepos)
 	mux.HandleFunc("GET /api/gitrepos/{namespace}/{name}", a.handleGitRepoDetail)
+	mux.HandleFunc("GET /api/gitrepos/{namespace}/{name}/history", a.handleGitRepoHistory)
+	mux.HandleFunc("POST /api/gitrepos/{namespace}/{name}/sync", a.handleGitRepoSync)
+	mux.HandleFunc("POST /api/gitrepos/{namespace}/{name}/revision", a.handleGitRepoRevision)
 	mux.HandleFunc("GET /api/clusters", a.handleClusters)
 	mux.HandleFunc("GET /api/clusters/{namespace}/{name}", a.handleClusterDetail)
 	mux.HandleFunc("GET /api/bundledeployments", a.handleBundleDeployments)
 	mux.HandleFunc("GET /api/bundledeployments/{namespace}/{name}", a.handleBundleDeploymentDetail)
 	mux.HandleFunc("GET /api/bundledeployments/{namespace}/{name}/managed-object", a.handleManagedObjectYAML)
+	mux.HandleFunc("GET /api/bundledeployments/{namespace}/{name}/managed-object/logs", a.handleManagedObjectLogs)
 	mux.HandleFunc("POST /api/bundles/{namespace}/{name}/reconcile", a.handleReconcile)
 
 	staticRoot := "web"
@@ -73,6 +77,8 @@ func (a *App) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"notificationConfigured":    a.config.NtfyBaseURL != "" && a.config.NtfyTopic != "",
 		"reconcileEnabled":          a.config.ReconcileEnabled,
 		"managedObjectsYAMLEnabled": a.config.ManagedObjectsEnabled,
+		"gitHistoryEnabled":         a.config.GitHistoryEnabled,
+		"gitRepoActionsEnabled":     a.config.GitRepoActionsEnabled,
 	})
 }
 
@@ -180,7 +186,7 @@ func (a *App) handleManagedObjectYAML(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, err)
 		return
 	}
-	yamlValue, redacted, err := a.fleet.managedObjectYAML(r.Context(), cluster, resource)
+	diagnostics, err := a.fleet.managedObjectDiagnostics(r.Context(), deployment, cluster, resource)
 	if err != nil {
 		status := http.StatusBadGateway
 		if errors.Is(err, errManagedObjectsDisabled) {
@@ -191,7 +197,10 @@ func (a *App) handleManagedObjectYAML(w http.ResponseWriter, r *http.Request) {
 	}
 	view := ManagedObjectYAMLView{
 		ManagedObjectView: managedObjectView(deployment, clusterName, resource),
-		YAML:              yamlValue, Redacted: redacted,
+		YAML:              diagnostics.LiveYAML, LiveYAML: diagnostics.LiveYAML,
+		DesiredYAML: diagnostics.DesiredYAML, Diff: diagnostics.Diff,
+		Redacted: diagnostics.Redacted, Events: diagnostics.Events, Pods: diagnostics.Pods,
+		DesiredError: diagnostics.DesiredError,
 	}
 	writeJSON(w, http.StatusOK, view)
 }

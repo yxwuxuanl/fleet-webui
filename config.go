@@ -19,6 +19,8 @@ type Config struct {
 	KubeContext               string
 	ManagedObjectsEnabled     bool
 	ManagedObjectsKubeconfigs bool
+	GitHistoryEnabled         bool
+	GitRepoActionsEnabled     bool
 	ReconcileEnabled          bool
 	NtfyBaseURL               string
 	NtfyTopic                 string
@@ -48,6 +50,8 @@ func loadConfig() Config {
 		KubeContext:               strings.TrimSpace(os.Getenv("FLEET_KUBECONTEXT")),
 		ManagedObjectsEnabled:     envBool("MANAGED_OBJECTS_YAML_ENABLED", true),
 		ManagedObjectsKubeconfigs: envBool("MANAGED_OBJECTS_DOWNSTREAM_KUBECONFIGS", false),
+		GitHistoryEnabled:         envBool("GIT_HISTORY_ENABLED", true),
+		GitRepoActionsEnabled:     envBool("GIT_REPO_ACTIONS_ENABLED", true),
 		ReconcileEnabled:          envBool("RECONCILE_ENABLED", true),
 		NtfyBaseURL:               strings.TrimRight(os.Getenv("NTFY_BASE_URL"), "/"),
 		NtfyTopic:                 os.Getenv("NTFY_TOPIC"),

@@ -15,10 +15,26 @@ rules:
   - apiGroups: ["*"]
     resources: ["*"]
     verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["pods", "events"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
   {{- end }}
   {{- if .Values.reconcile.enabled }}
   - apiGroups: ["fleet.cattle.io"]
     resources: ["bundles"]
+    verbs: ["patch"]
+  {{- end }}
+  {{- if .Values.gitHistory.enabled }}
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+  {{- end }}
+  {{- if .Values.gitRepoActions.enabled }}
+  - apiGroups: ["fleet.cattle.io"]
+    resources: ["gitrepos"]
     verbs: ["patch"]
   {{- end }}
 ---

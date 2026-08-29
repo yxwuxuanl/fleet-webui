@@ -5,11 +5,15 @@ import { PageHeading } from "@/src/components/page-heading";
 export default function SettingsView({
   notificationConfigured,
   reconcileEnabled,
+  gitHistoryEnabled,
+  gitRepoActionsEnabled,
   browserAlerts,
   onBrowserAlertsChange,
 }: {
   notificationConfigured: boolean;
   reconcileEnabled: boolean;
+  gitHistoryEnabled: boolean;
+  gitRepoActionsEnabled: boolean;
   browserAlerts: boolean;
   onBrowserAlertsChange: () => void;
 }) {
@@ -20,6 +24,20 @@ export default function SettingsView({
       enabledText: "Enabled",
       disabledText: "Disabled",
       body: "Reconcile requests require an explicit confirmation in the Bundle dialog. No browser token is required.",
+    },
+    {
+      title: "Git commit history",
+      enabled: gitHistoryEnabled,
+      enabledText: "Enabled",
+      disabledText: "Disabled",
+      body: "Loads recent commits server-side using each GitRepo credential Secret. Credentials never reach the browser.",
+    },
+    {
+      title: "GitRepo controls",
+      enabled: gitRepoActionsEnabled,
+      enabledText: "Enabled",
+      disabledText: "Read only",
+      body: "Allows sync now plus confirmed revision pinning and branch resume operations.",
     },
     {
       title: "ntfy delivery",

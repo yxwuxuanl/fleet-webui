@@ -57,6 +57,10 @@ spec:
               value: {{ .Values.managedObjects.enabled | quote }}
             - name: MANAGED_OBJECTS_DOWNSTREAM_KUBECONFIGS
               value: {{ .Values.managedObjects.downstreamKubeconfigs | quote }}
+            - name: GIT_HISTORY_ENABLED
+              value: {{ .Values.gitHistory.enabled | quote }}
+            - name: GIT_REPO_ACTIONS_ENABLED
+              value: {{ .Values.gitRepoActions.enabled | quote }}
             - name: HTTP_READ_HEADER_TIMEOUT_SECONDS
               value: {{ .Values.server.readHeaderTimeoutSeconds | quote }}
             - name: HTTP_READ_TIMEOUT_SECONDS
@@ -88,6 +92,16 @@ spec:
             {{- toYaml .Values.readinessProbe | nindent 12 }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.gitHistory.enabled }}
+          volumeMounts:
+            - name: git-known-hosts-tmp
+              mountPath: /tmp
+          {{- end }}
+      {{- if .Values.gitHistory.enabled }}
+      volumes:
+        - name: git-known-hosts-tmp
+          emptyDir: {}
+      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

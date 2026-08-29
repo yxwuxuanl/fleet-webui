@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +18,25 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
+
+func encodedHelmRelease(t *testing.T, manifest string) []byte {
+	t.Helper()
+	payload, err := json.Marshal(map[string]string{"manifest": manifest})
+	if err != nil {
+		t.Fatalf("encode Helm release fixture: %v", err)
+	}
+	var compressed bytes.Buffer
+	writer := gzip.NewWriter(&compressed)
+	if _, err := writer.Write(payload); err != nil {
+		t.Fatalf("compress Helm release fixture: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close Helm release fixture: %v", err)
+	}
+	encoded := make([]byte, base64.StdEncoding.EncodedLen(compressed.Len()))
+	base64.StdEncoding.Encode(encoded, compressed.Bytes())
+	return encoded
+}
 
 func TestAPIListsAndReconcilesBundle(t *testing.T) {
 	updatedAt := time.Now().UTC()
@@ -86,6 +108,7 @@ func TestAPIListsAndReconcilesBundle(t *testing.T) {
 	bundleDeployment.Status.Display.Deployed = "True"
 	bundleDeployment.Status.Display.Monitored = "True"
 	bundleDeployment.Status.SyncGeneration = &syncGeneration
+	bundleDeployment.Status.Release = "platform-system/platform-base:3"
 	bundleDeployment.Status.ResourceCounts.Ready = 4
 	bundleDeployment.Status.ResourceCounts.DesiredReady = 4
 	bundleDeployment.Status.Conditions = []Condition{{Type: "Ready", Status: "True", LastUpdateTime: &updatedAt}}
@@ -138,6 +161,13 @@ func TestAPIListsAndReconcilesBundle(t *testing.T) {
 				"metadata": map[string]any{"name": "platform-base", "namespace": "platform-system", "managedFields": []any{map[string]any{"manager": "fleet-agent"}}},
 				"spec":     map[string]any{"replicas": 2},
 			})
+		case http.MethodGet + " /api/v1/namespaces/platform-system/events":
+			writeJSON(w, http.StatusOK, map[string]any{"items": []map[string]any{{"type": "Warning", "reason": "ProgressDeadlineExceeded", "message": "deployment is not progressing", "count": 2, "lastTimestamp": updatedAt.Format(time.RFC3339)}}})
+		case http.MethodGet + " /api/v1/namespaces/platform-system/pods":
+			writeJSON(w, http.StatusOK, map[string]any{"items": []any{}})
+		case http.MethodGet + " /api/v1/namespaces/platform-system/secrets/sh.helm.release.v1.platform-base.v3":
+			manifest := "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: platform-base\nspec:\n  replicas: 1\n---\napiVersion: v1\nkind: Secret\nmetadata:\n  name: platform-token\ndata:\n  token: desired-secret\n"
+			writeJSON(w, http.StatusOK, kubeSecret{Data: map[string][]byte{"release": encodedHelmRelease(t, manifest)}})
 		case http.MethodGet + " /api/v1/namespaces/platform-system/secrets/platform-token":
 			writeJSON(w, http.StatusOK, map[string]any{
 				"apiVersion": "v1", "kind": "Secret",
@@ -157,6 +187,7 @@ func TestAPIListsAndReconcilesBundle(t *testing.T) {
 		FleetSkipTLS:          true,
 		ManagedObjectsEnabled: true,
 		ReconcileEnabled:      true,
+		GitRepoActionsEnabled: true,
 		RequestTimeout:        time.Second,
 	})
 	server := httptest.NewServer(app.routes())
@@ -309,6 +340,9 @@ func TestAPIListsAndReconcilesBundle(t *testing.T) {
 	}
 	if !strings.Contains(deploymentYAML.YAML, "replicas: 2") || strings.Contains(deploymentYAML.YAML, "managedFields") {
 		t.Fatalf("unexpected managed Deployment YAML: %s", deploymentYAML.YAML)
+	}
+	if !strings.Contains(deploymentYAML.DesiredYAML, "replicas: 1") || !strings.Contains(deploymentYAML.Diff, "-  replicas: 1") || len(deploymentYAML.Events) != 1 {
+		t.Fatalf("managed Deployment diagnostics are incomplete: %#v", deploymentYAML)
 	}
 
 	secretQuery := url.Values{"apiVersion": {"v1"}, "kind": {"Secret"}, "namespace": {"platform-system"}, "name": {"platform-token"}}

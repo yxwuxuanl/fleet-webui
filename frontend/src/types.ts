@@ -4,6 +4,8 @@ export interface HealthStatus {
   notificationConfigured: boolean;
   reconcileEnabled: boolean;
   managedObjectsYAMLEnabled?: boolean;
+  gitHistoryEnabled?: boolean;
+  gitRepoActionsEnabled?: boolean;
 }
 
 export interface BundleView {
@@ -158,7 +160,51 @@ export interface ManagedObjectView {
 
 export interface ManagedObjectYAML extends ManagedObjectView {
   yaml: string;
+  liveYAML: string;
+  desiredYAML?: string;
+  diff?: string;
   redacted: boolean;
+  desiredError?: string;
+  events: ManagedObjectEvent[];
+  pods: ManagedObjectPod[];
+}
+
+export interface ManagedObjectEvent {
+  type: string;
+  reason: string;
+  message: string;
+  count: number;
+  firstSeen?: string;
+  lastSeen?: string;
+  source?: string;
+}
+
+export interface ManagedObjectPod {
+  name: string;
+  namespace: string;
+  phase: string;
+  ready: number;
+  containers: number;
+  restarts: number;
+  containerNames: string[];
+}
+
+export interface GitCommit {
+  hash: string;
+  shortHash: string;
+  author: string;
+  authoredAt: string;
+  subject: string;
+  current: boolean;
+  pinned: boolean;
+}
+
+export interface GitHistory {
+  items: GitCommit[];
+  revision?: string;
+  branch?: string;
+  actionsEnabled: boolean;
+  historyEnabled: boolean;
 }
 
 export interface LoadErrors {

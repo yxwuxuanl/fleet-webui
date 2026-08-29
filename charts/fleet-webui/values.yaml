@@ -58,6 +58,12 @@ managedObjects:
   enabled: false
   downstreamKubeconfigs: false
 
+gitHistory:
+  enabled: false
+
+gitRepoActions:
+  enabled: true
+
 server:
   readHeaderTimeoutSeconds: 5
   readTimeoutSeconds: 15

@@ -57,9 +57,9 @@ helm upgrade --install fleet-webui ./charts/fleet-webui \
   --set ntfy.existingSecret=fleet-webui-ntfy
 ```
 
-## Managed object YAML
+## Managed object diagnostics
 
-The Bundle drawer always lists the Kubernetes objects reported in `BundleDeployment.status.resources`. Live YAML is opt-in because Kubernetes RBAC must grant `get` for arbitrary resource kinds. The API only accepts objects present in the selected BundleDeployment and redacts Secret `data`, `stringData`, and `binaryData` before returning YAML.
+The Bundle drawer always lists the Kubernetes objects reported in `BundleDeployment.status.resources`. Diagnostics are opt-in because Kubernetes RBAC must grant access to arbitrary resource kinds. The API shows Desired/Live YAML, a normalized Diff, Events, workload Pods, and container logs only for objects present in the selected BundleDeployment. Secret `data`, `stringData`, and `binaryData` are redacted before returning YAML or Diff.
 
 For objects deployed to the same Kubernetes API as Fleet WebUI:
 
@@ -80,6 +80,18 @@ helm upgrade --install fleet-webui ./charts/fleet-webui \
 
 Enabling managed object YAML grants the WebUI ServiceAccount get-only access to arbitrary Kubernetes resource kinds, including Secrets. Enable it only for a private, HTTPS-protected console with tightly controlled access.
 
+## Private Git history and revision control
+
+Enable recent commit history and allow the server to read the Secret referenced by `GitRepo.spec.clientSecretName`:
+
+```sh
+helm upgrade --install fleet-webui ./charts/fleet-webui \
+  --namespace cattle-fleet-system \
+  --set gitHistory.enabled=true
+```
+
+SSH Secrets must include `ssh-privatekey` and `known_hosts`; HTTPS Secrets may use `username` with `password` or `token`. `gitRepoActions.enabled=true` enables immediate sync plus revision pin/resume and adds GitRepo patch permission. Pinning uses Fleet's `spec.revision`; it pauses branch updates until resumed and does not rewrite Git history.
+
 ## Common values
 
 | Value | Default | Description |
@@ -91,6 +103,8 @@ Enabling managed object YAML grants the WebUI ServiceAccount get-only access to 
 | `fleet.cacheTTLSeconds` | `10` | Shared in-process list cache lifetime. |
 | `managedObjects.enabled` | `false` | Enable live YAML for Bundle-managed objects and add get-only dynamic-resource RBAC. |
 | `managedObjects.downstreamKubeconfigs` | `false` | Read Fleet Cluster kubeconfig Secrets to retrieve YAML from remote clusters. |
+| `gitHistory.enabled` | `false` | Read recent commits using each GitRepo credential Secret. |
+| `gitRepoActions.enabled` | `true` | Enable sync-now and revision pin/resume with GitRepo patch RBAC. |
 | `reconcile.enabled` | `true` | Enable confirmation-based manual reconcile and Bundle patch RBAC. |
 | `ntfy.enabled` | `false` | Configure the fixed ntfy channel. |
 | `ntfy.existingSecret` | empty | Secret containing `ntfy.tokenKey`. |

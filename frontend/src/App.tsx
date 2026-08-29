@@ -216,6 +216,8 @@ export default function App() {
           <SettingsView
             notificationConfigured={health.notificationConfigured}
             reconcileEnabled={health.reconcileEnabled}
+            gitHistoryEnabled={Boolean(health.gitHistoryEnabled)}
+            gitRepoActionsEnabled={Boolean(health.gitRepoActionsEnabled)}
             browserAlerts={browserAlerts}
             onBrowserAlertsChange={() => void toggleBrowserAlerts()}
           />

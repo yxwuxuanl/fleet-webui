@@ -51,12 +51,14 @@ type Bundle struct {
 type GitRepo struct {
 	Metadata Metadata `json:"metadata"`
 	Spec     struct {
-		Repo              string   `json:"repo"`
-		Branch            string   `json:"branch"`
-		Revision          string   `json:"revision"`
-		Paths             []string `json:"paths"`
-		PollingInterval   string   `json:"pollingInterval"`
-		ImageScanInterval string   `json:"imageScanInterval"`
+		Repo                string   `json:"repo"`
+		Branch              string   `json:"branch"`
+		Revision            string   `json:"revision"`
+		Paths               []string `json:"paths"`
+		PollingInterval     string   `json:"pollingInterval"`
+		ImageScanInterval   string   `json:"imageScanInterval"`
+		ClientSecretName    string   `json:"clientSecretName"`
+		ForceSyncGeneration int64    `json:"forceSyncGeneration"`
 	} `json:"spec"`
 	Status struct {
 		Commit                  string      `json:"commit"`
@@ -287,8 +289,44 @@ type ManagedObjectView struct {
 
 type ManagedObjectYAMLView struct {
 	ManagedObjectView
-	YAML     string `json:"yaml"`
-	Redacted bool   `json:"redacted"`
+	YAML         string                   `json:"yaml"`
+	LiveYAML     string                   `json:"liveYAML"`
+	DesiredYAML  string                   `json:"desiredYAML,omitempty"`
+	Diff         string                   `json:"diff,omitempty"`
+	Redacted     bool                     `json:"redacted"`
+	Events       []ManagedObjectEventView `json:"events"`
+	Pods         []ManagedObjectPodView   `json:"pods"`
+	DesiredError string                   `json:"desiredError,omitempty"`
+}
+
+type ManagedObjectEventView struct {
+	Type      string `json:"type"`
+	Reason    string `json:"reason"`
+	Message   string `json:"message"`
+	Count     int32  `json:"count"`
+	FirstSeen string `json:"firstSeen,omitempty"`
+	LastSeen  string `json:"lastSeen,omitempty"`
+	Source    string `json:"source,omitempty"`
+}
+
+type ManagedObjectPodView struct {
+	Name           string   `json:"name"`
+	Namespace      string   `json:"namespace"`
+	Phase          string   `json:"phase"`
+	Ready          int      `json:"ready"`
+	Containers     int      `json:"containers"`
+	Restarts       int32    `json:"restarts"`
+	ContainerNames []string `json:"containerNames"`
+}
+
+type GitCommitView struct {
+	Hash       string `json:"hash"`
+	ShortHash  string `json:"shortHash"`
+	Author     string `json:"author"`
+	AuthoredAt string `json:"authoredAt"`
+	Subject    string `json:"subject"`
+	Current    bool   `json:"current"`
+	Pinned     bool   `json:"pinned"`
 }
 
 func latestTime(values ...*time.Time) time.Time {

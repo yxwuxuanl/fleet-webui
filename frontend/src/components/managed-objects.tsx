@@ -1,5 +1,11 @@
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
-import { RiCodeBoxLine, RiSearchLine } from "@remixicon/react";
+import {
+  RiCodeBoxLine,
+  RiFileList2Line,
+  RiHistoryLine,
+  RiSearchLine,
+  RiTerminalBoxLine,
+} from "@remixicon/react";
 import { Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
 import { CloseButton } from "@/components/base/buttons/close-button";
 import { Input } from "@/components/base/input/input";
@@ -36,11 +42,16 @@ function ObjectYAMLDialog({
 }) {
   const [result, setResult] = useState<ManagedObjectYAML | null>(null);
   const [error, setError] = useState("");
+  const [tab, setTab] = useState<"diff" | "desired" | "live" | "diagnostics">("diff");
+  const [logs, setLogs] = useState<{ label: string; value: string } | null>(null);
+  const [logsBusy, setLogsBusy] = useState("");
   useEffect(() => {
     if (!object) return;
     const controller = new AbortController();
     setResult(null);
     setError("");
+    setTab("diff");
+    setLogs(null);
     void api<ManagedObjectYAML>(yamlURL(object), {
       signal: controller.signal,
     })
@@ -51,6 +62,37 @@ function ObjectYAMLDialog({
       });
     return () => controller.abort();
   }, [object]);
+
+  async function loadLogs(pod: string, container: string) {
+    if (!object) return;
+    setLogsBusy(`${pod}/${container}`);
+    setError("");
+    const query = new URLSearchParams({
+      apiVersion: object.apiVersion,
+      kind: object.kind,
+      namespace: object.namespace ?? "",
+      name: object.name,
+      pod,
+      container,
+    });
+    try {
+      const response = await api<{ logs: string }>(
+        `/api/bundledeployments/${encodeURIComponent(object.deploymentNamespace)}/${encodeURIComponent(object.deploymentName)}/managed-object/logs?${query}`,
+      );
+      setLogs({ label: `${pod} · ${container}`, value: response.logs });
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setLogsBusy("");
+    }
+  }
+
+  const tabs = [
+    { id: "diff" as const, label: "Diff" },
+    { id: "desired" as const, label: "Desired" },
+    { id: "live" as const, label: "Live" },
+    { id: "diagnostics" as const, label: "Diagnostics" },
+  ];
 
   return (
     <ModalOverlay
@@ -85,19 +127,112 @@ function ObjectYAMLDialog({
               Secret values are redacted by the server.
             </div>
           ) : null}
+          <div className="border-b border-border-primary px-3 sm:px-5">
+            <div className="flex gap-1 overflow-x-auto py-2">
+              {tabs.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setTab(item.id);
+                    setLogs(null);
+                  }}
+                  className={`rounded-lg px-3 py-2 text-body-medium outline-none transition-colors ${tab === item.id ? "bg-accent-50 text-accent-700" : "text-text-secondary hover:bg-background-secondary-hover"}`}
+                >
+                  {item.label}
+                  {item.id === "diagnostics" && result
+                    ? ` (${(result.events ?? []).length + (result.pods ?? []).length})`
+                    : ""}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-5">
             {error ? (
               <div role="alert" className="rounded-xl bg-status-rose-background p-3 text-body-regular text-status-rose-text">
                 {error}
               </div>
-            ) : result ? (
-              <pre className="min-h-72 overflow-auto rounded-xl border border-border-primary bg-background-secondary-default p-4 font-mono text-[12px] leading-5 text-text-primary">
-                <code>{result.yaml}</code>
-              </pre>
-            ) : (
+            ) : !result ? (
               <div className="grid min-h-72 place-items-center rounded-xl border border-border-primary bg-background-secondary-default text-body-regular text-text-tertiary">
-                Loading current object YAML…
+                Loading object diagnostics…
               </div>
+            ) : tab === "diagnostics" ? (
+              <div className="space-y-5">
+                {logs ? (
+                  <section>
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-body-medium text-text-primary">Container logs</h3>
+                        <p className="mt-0.5 text-caption-1-regular text-text-tertiary">{logs.label} · last 200 lines</p>
+                      </div>
+                      <button type="button" onClick={() => setLogs(null)} className="text-body-medium text-accent-700">Back</button>
+                    </div>
+                    <pre className="min-h-72 overflow-auto rounded-xl border border-border-primary bg-background-secondary-default p-4 font-mono text-[12px] leading-5 text-text-primary"><code>{logs.value || "No log output."}</code></pre>
+                  </section>
+                ) : (
+                  <>
+                    <section>
+                      <div className="flex items-center gap-2">
+                        <RiTerminalBoxLine className="size-5 text-text-secondary" />
+                        <h3 className="text-body-medium text-text-primary">Workload pods</h3>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {(result.pods ?? []).length ? (result.pods ?? []).map((pod) => (
+                          <div key={pod.name} className="rounded-xl border border-border-primary bg-background-secondary-default p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div>
+                                <p className="font-mono text-body-medium text-text-primary">{pod.name}</p>
+                                <p className="mt-1 text-caption-1-regular text-text-tertiary">{pod.phase} · {pod.ready}/{pod.containers} ready · {pod.restarts} restarts</p>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {pod.containerNames.map((container) => (
+                                  <button key={container} type="button" disabled={Boolean(logsBusy)} onClick={() => void loadLogs(pod.name, container)} className="rounded-lg border border-border-primary bg-background-primary-default px-2.5 py-1.5 text-caption-1-medium text-accent-700 hover:bg-background-secondary-hover disabled:opacity-60">
+                                    {logsBusy === `${pod.name}/${container}` ? "Loading…" : `${container} logs`}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )) : <p className="rounded-xl border border-border-primary p-3 text-body-regular text-text-tertiary">No workload pods were found for this object.</p>}
+                      </div>
+                    </section>
+                    <section>
+                      <div className="flex items-center gap-2">
+                        <RiHistoryLine className="size-5 text-text-secondary" />
+                        <h3 className="text-body-medium text-text-primary">Kubernetes events</h3>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {(result.events ?? []).length ? (result.events ?? []).map((event, index) => (
+                          <div key={`${event.reason}-${event.lastSeen}-${index}`} className="rounded-xl border border-border-primary p-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-body-medium text-text-primary">{event.reason || event.type || "Event"}</p>
+                              <span className={`text-caption-1-medium ${event.type === "Warning" ? "text-status-rose-text" : "text-text-tertiary"}`}>{event.type}{event.count > 1 ? ` ×${event.count}` : ""}</span>
+                            </div>
+                            <p className="mt-1 text-body-regular text-text-secondary">{event.message}</p>
+                            <p className="mt-2 text-caption-1-regular text-text-tertiary">{event.lastSeen ? dateLabel(event.lastSeen) : "Time unavailable"}{event.source ? ` · ${event.source}` : ""}</p>
+                          </div>
+                        )) : <p className="rounded-xl border border-border-primary p-3 text-body-regular text-text-tertiary">No Kubernetes events are currently reported for this object.</p>}
+                      </div>
+                    </section>
+                  </>
+                )}
+              </div>
+            ) : result.desiredError && tab !== "live" ? (
+              <div className="rounded-xl border border-status-yellow-border bg-status-yellow-background p-4 text-body-regular text-status-yellow-text">
+                Desired state is unavailable: {result.desiredError}
+              </div>
+            ) : tab === "diff" && !result.diff ? (
+              <div className="grid min-h-72 place-items-center rounded-xl border border-status-lime-border bg-status-lime-background p-4 text-center">
+                <div>
+                  <RiFileList2Line className="mx-auto size-7 text-status-lime-text" />
+                  <p className="mt-2 text-body-medium text-status-lime-text">Desired and Live match</p>
+                  <p className="mt-1 text-body-regular text-text-secondary">Runtime metadata and status fields are ignored.</p>
+                </div>
+              </div>
+            ) : (
+              <pre className="min-h-72 overflow-auto rounded-xl border border-border-primary bg-background-secondary-default p-4 font-mono text-[12px] leading-5 text-text-primary">
+                <code>{tab === "diff" ? result.diff : tab === "desired" ? result.desiredYAML : result.liveYAML || result.yaml}</code>
+              </pre>
             )}
           </div>
         </Dialog>

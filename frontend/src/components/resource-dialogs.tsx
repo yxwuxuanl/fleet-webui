@@ -1,5 +1,9 @@
-import { useEffect, useState } from "react";
-import { RiGitRepositoryLine, RiRefreshLine } from "@remixicon/react";
+import { useCallback, useEffect, useState } from "react";
+import {
+  RiGitCommitLine,
+  RiGitRepositoryLine,
+  RiRefreshLine,
+} from "@remixicon/react";
 import { Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
 import { Button } from "@/components/base/buttons/button";
 import { CloseButton } from "@/components/base/buttons/close-button";
@@ -12,6 +16,7 @@ import type {
   BundleView,
   FleetCondition,
   GitRepoDetail,
+  GitHistory,
   GitRepoView,
   ReconcileResult,
 } from "@/src/types";
@@ -275,18 +280,64 @@ export function RepositoryDetailDrawer({
 }) {
   const [detail, setDetail] = useState<GitRepoDetail | null>(null);
   const [error, setError] = useState("");
+  const [history, setHistory] = useState<GitHistory | null>(null);
+  const [historyError, setHistoryError] = useState("");
+  const [busy, setBusy] = useState("");
+  const [pendingRevision, setPendingRevision] = useState<string | null>(null);
+  const loadRepository = useCallback(async () => {
+    if (!repo) return;
+    const base = `/api/gitrepos/${encodeURIComponent(repo.namespace)}/${encodeURIComponent(repo.name)}`;
+    const [detailResult, historyResult] = await Promise.allSettled([
+      api<GitRepoDetail>(base),
+      api<GitHistory>(`${base}/history?limit=30`),
+    ]);
+    if (detailResult.status === "fulfilled") setDetail(detailResult.value);
+    else setError(detailResult.reason instanceof Error ? detailResult.reason.message : String(detailResult.reason));
+    if (historyResult.status === "fulfilled") setHistory(historyResult.value);
+    else setHistoryError(historyResult.reason instanceof Error ? historyResult.reason.message : String(historyResult.reason));
+  }, [repo]);
   useEffect(() => {
     if (!open || !repo) return;
     setDetail(null);
     setError("");
-    void api<GitRepoDetail>(
-      `/api/gitrepos/${encodeURIComponent(repo.namespace)}/${encodeURIComponent(repo.name)}`,
-    )
-      .then(setDetail)
-      .catch((reason) =>
-        setError(reason instanceof Error ? reason.message : String(reason)),
-      );
-  }, [open, repo]);
+    setHistory(null);
+    setHistoryError("");
+    setPendingRevision(null);
+    void loadRepository();
+  }, [loadRepository, open, repo]);
+
+  async function syncNow() {
+    if (!repo) return;
+    setBusy("sync");
+    setError("");
+    try {
+      await api(`/api/gitrepos/${encodeURIComponent(repo.namespace)}/${encodeURIComponent(repo.name)}/sync`, { method: "POST" });
+      await loadRepository();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function setRevision(revision: string) {
+    if (!repo) return;
+    setBusy(revision || "resume");
+    setError("");
+    try {
+      await api(`/api/gitrepos/${encodeURIComponent(repo.namespace)}/${encodeURIComponent(repo.name)}/revision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ revision }),
+      });
+      setPendingRevision(null);
+      await loadRepository();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setBusy("");
+    }
+  }
   if (!repo) return null;
   const source = detail ?? repo;
   return (
@@ -295,6 +346,11 @@ export function RepositoryDetailDrawer({
       onOpenChange={onOpenChange}
       title={source?.name ?? "Repository details"}
       eyebrow={source?.namespace ?? "Git repository"}
+      actions={history?.actionsEnabled ? (
+        <Button leadingIcon={RiRefreshLine} disabled={Boolean(busy)} onClick={() => void syncNow()}>
+          {busy === "sync" ? "Syncing…" : "Sync now"}
+        </Button>
+      ) : null}
     >
       {error ? (
         <div className="rounded-xl bg-status-rose-background p-3 text-status-rose-text">
@@ -351,6 +407,73 @@ export function RepositoryDetailDrawer({
               </div>
             </section>
           ) : null}
+          <section>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-body-medium text-text-primary">Revision history</h3>
+                <p className="mt-0.5 text-caption-1-regular text-text-tertiary">
+                  Recent commits from {history?.branch || source.branch || "the configured branch"}.
+                </p>
+              </div>
+              {history?.revision && history.actionsEnabled ? (
+                <Button size="small" variant="secondary" disabled={Boolean(busy)} onClick={() => setPendingRevision("")}>
+                  Resume branch
+                </Button>
+              ) : null}
+            </div>
+            {history?.revision ? (
+              <div className="mt-3 rounded-xl border border-status-yellow-border bg-status-yellow-background p-3 text-body-regular text-status-yellow-text">
+                Updates are pinned to <span className="font-mono">{shortCommit(history.revision)}</span>. New branch commits will not deploy until branch tracking is resumed.
+              </div>
+            ) : null}
+            {pendingRevision !== null ? (
+              <div className="mt-3 rounded-xl border border-status-yellow-border bg-status-yellow-background p-3">
+                <p className="text-body-medium text-status-yellow-text">
+                  {pendingRevision ? `Pin deployments to ${shortCommit(pendingRevision)}?` : "Resume following the configured branch?"}
+                </p>
+                <p className="mt-1 text-body-regular text-text-secondary">
+                  {pendingRevision ? "Fleet will reconcile this selected commit and pause normal branch updates. This does not rewrite the Git repository." : "Fleet will accept new commits from the configured branch again."}
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <Button size="small" variant={pendingRevision ? "danger" : "primary"} disabled={Boolean(busy)} onClick={() => void setRevision(pendingRevision)}>{busy ? "Applying…" : "Confirm"}</Button>
+                  <Button size="small" variant="secondary" disabled={Boolean(busy)} onClick={() => setPendingRevision(null)}>Cancel</Button>
+                </div>
+              </div>
+            ) : null}
+            {history && !history.historyEnabled ? (
+              <div className="mt-3 rounded-xl border border-border-primary p-3 text-body-regular text-text-tertiary">
+                Commit history is disabled by server configuration.
+              </div>
+            ) : historyError ? (
+              <div className="mt-3 rounded-xl border border-border-primary p-3 text-body-regular text-text-tertiary">
+                Commit history unavailable: {historyError}
+              </div>
+            ) : !history ? (
+              <div className="mt-3 rounded-xl border border-border-primary p-3 text-body-regular text-text-tertiary">Loading commit history…</div>
+            ) : history.historyEnabled ? (
+              <div className="mt-3 max-h-80 divide-y divide-border-primary overflow-y-auto rounded-xl border border-border-primary">
+                {history.items.map((commit) => (
+                  <div key={commit.hash} className="p-3">
+                    <div className="flex items-start gap-3">
+                      <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-background-tertiary-default text-text-secondary"><RiGitCommitLine className="size-4" /></span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-caption-1-medium text-text-primary">{commit.shortHash}</span>
+                          {commit.current ? <span className="rounded bg-status-lime-background px-1.5 py-0.5 text-caption-1-medium text-status-lime-text">deployed</span> : null}
+                          {commit.pinned ? <span className="rounded bg-status-yellow-background px-1.5 py-0.5 text-caption-1-medium text-status-yellow-text">pinned</span> : null}
+                        </div>
+                        <p className="mt-1 text-body-medium text-text-primary">{commit.subject || "No commit subject"}</p>
+                        <p className="mt-1 text-caption-1-regular text-text-tertiary">{commit.author || "Unknown author"} · {dateLabel(commit.authoredAt)}</p>
+                      </div>
+                      {history.actionsEnabled && !commit.pinned ? (
+                        <Button size="xs" variant="ghost" disabled={Boolean(busy)} onClick={() => setPendingRevision(commit.hash)}>Pin</Button>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </section>
           {detail ? (
             <section>
               <h3 className="text-body-medium text-text-primary">Resources</h3>

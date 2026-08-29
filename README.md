@@ -38,14 +38,22 @@ The Fleet identity needs:
 
 - `get`, `list`, `watch` on `bundles.fleet.cattle.io` and `gitrepos.fleet.cattle.io`
 - `patch` on `bundles.fleet.cattle.io` only when manual reconcile is enabled
+- `patch` on `gitrepos.fleet.cattle.io` when GitRepo actions are enabled
+- `get` on Git credential Secrets when private Git history is enabled
 
 List responses are fetched in chunks (`FLEET_PAGE_SIZE`, default `250`) and shared between browser sessions for a short interval (`FLEET_CACHE_TTL_SECONDS`, default `10`). This avoids a full upstream list request from every open dashboard while preserving complete results.
 
 ## Managed Kubernetes objects
 
-The Bundle detail drawer lists objects reported by each matching `BundleDeployment.status.resources`. With `MANAGED_OBJECTS_YAML_ENABLED=true` (the local default), selecting an object reads its current YAML from the connected Kubernetes API. Requests are limited to objects Fleet already indexed for that BundleDeployment. Secret values and large applied-object annotations are redacted server-side.
+The Bundle detail drawer lists objects reported by each matching `BundleDeployment.status.resources`. With `MANAGED_OBJECTS_YAML_ENABLED=true` (the local default), selecting an object shows Desired YAML from Fleet's Helm release, current Live YAML, a normalized Diff, Kubernetes Events, matching workload Pods, and opt-in container logs. Requests are limited to objects Fleet already indexed for that BundleDeployment. Secret values and large applied-object annotations are redacted server-side before either YAML or Diff is returned.
 
 Set `MANAGED_OBJECTS_DOWNSTREAM_KUBECONFIGS=true` to read remote-cluster objects through the kubeconfig Secret referenced by the Fleet Cluster. This requires `get` access to those Secrets. The Helm chart keeps both live YAML and downstream kubeconfig access disabled by default because arbitrary Bundle kinds require broad get-only Kubernetes RBAC; enable them only for a private HTTPS console.
+
+## Git history and operational rollback
+
+Set `GIT_HISTORY_ENABLED=true` to load recent commits directly from each GitRepo. Private SSH repositories reuse `spec.clientSecretName`; the Secret must contain `ssh-privatekey` and `known_hosts`. HTTPS repositories may use `username` plus `password` or `token`. Credentials remain server-side.
+
+`GIT_REPO_ACTIONS_ENABLED=true` enables **Sync now**, **Pin revision**, and **Resume branch**. Pinning writes a selected full commit hash to `GitRepo.spec.revision`, so Fleet redeploys that version and pauses normal branch updates. Resuming clears `spec.revision`. This is an operational rollback and does not rewrite or revert the Git repository.
 
 ## Reconcile and notifications
 

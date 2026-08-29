@@ -13,8 +13,11 @@ rules:
     resources: ["bundles", "gitrepos", "clusters", "bundledeployments"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["fleet.cattle.io"]
-    resources: ["bundles"]
+    resources: ["bundles", "gitrepos"]
     verbs: ["patch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -56,6 +59,10 @@ spec:
               value: "false"
             - name: MANAGED_OBJECTS_DOWNSTREAM_KUBECONFIGS
               value: "false"
+            - name: GIT_HISTORY_ENABLED
+              value: "true"
+            - name: GIT_REPO_ACTIONS_ENABLED
+              value: "true"
           ports:
             - name: http
               containerPort: 8080
