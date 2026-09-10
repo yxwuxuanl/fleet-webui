@@ -289,7 +289,7 @@ export function RepositoryDetailDrawer({
     const base = `/api/gitrepos/${encodeURIComponent(repo.namespace)}/${encodeURIComponent(repo.name)}`;
     const [detailResult, historyResult] = await Promise.allSettled([
       api<GitRepoDetail>(base),
-      api<GitHistory>(`${base}/history?limit=30`),
+      api<GitHistory>(`${base}/history?limit=10`),
     ]);
     if (detailResult.status === "fulfilled") setDetail(detailResult.value);
     else setError(detailResult.reason instanceof Error ? detailResult.reason.message : String(detailResult.reason));

@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -28,6 +27,8 @@ var (
 	errGitHistoryDisabled = errors.New("Git history is disabled by server configuration")
 	errGitActionsDisabled = errors.New("GitRepo actions are disabled by server configuration")
 )
+
+const gitHistoryDisplayLimit = 10
 
 func (c *FleetClient) getSecret(ctx context.Context, namespace, name string) (kubeSecret, error) {
 	if c.apiMode != "kubernetes" {
@@ -270,8 +271,7 @@ func (a *App) handleGitRepoHistory(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"items": []GitCommitView{}, "revision": repo.Spec.Revision, "branch": repo.Spec.Branch, "actionsEnabled": a.config.GitRepoActionsEnabled, "historyEnabled": false})
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	items, err := a.fleet.gitRepoHistory(r.Context(), namespace, name, limit)
+	items, err := a.fleet.gitRepoHistory(r.Context(), namespace, name, gitHistoryDisplayLimit)
 	if err != nil {
 		status := http.StatusBadGateway
 		if errors.Is(err, errGitHistoryDisabled) {

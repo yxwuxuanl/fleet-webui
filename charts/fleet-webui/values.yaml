@@ -65,6 +65,7 @@ gitRepoActions:
   enabled: true
 
 server:
+  accessLogEnabled: true
   readHeaderTimeoutSeconds: 5
   readTimeoutSeconds: 15
   writeTimeoutSeconds: 90

@@ -61,6 +61,8 @@ spec:
               value: {{ .Values.gitHistory.enabled | quote }}
             - name: GIT_REPO_ACTIONS_ENABLED
               value: {{ .Values.gitRepoActions.enabled | quote }}
+            - name: ACCESS_LOG_ENABLED
+              value: {{ .Values.server.accessLogEnabled | quote }}
             - name: HTTP_READ_HEADER_TIMEOUT_SECONDS
               value: {{ .Values.server.readHeaderTimeoutSeconds | quote }}
             - name: HTTP_READ_TIMEOUT_SECONDS

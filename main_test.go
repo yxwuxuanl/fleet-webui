@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -521,6 +522,37 @@ func TestReconcileCanBeDisabled(t *testing.T) {
 	app.routes().ServeHTTP(reconcileRecorder, httptest.NewRequest(http.MethodPost, "/api/bundles/fleet-local/example/reconcile", nil))
 	if reconcileRecorder.Code != http.StatusServiceUnavailable {
 		t.Fatalf("reconcile status = %d, want %d", reconcileRecorder.Code, http.StatusServiceUnavailable)
+	}
+}
+
+func TestAccessLogRecordsRequestWithoutQueryString(t *testing.T) {
+	var output bytes.Buffer
+	app := newApp(Config{AccessLogEnabled: true})
+	app.logger = slog.New(slog.NewJSONHandler(&output, nil))
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/health?token=do-not-log", nil)
+	request.RemoteAddr = "192.0.2.10:4321"
+	request.Header.Set("User-Agent", "fleet-webui-test")
+	app.routes().ServeHTTP(recorder, request)
+
+	var entry map[string]any
+	if err := json.NewDecoder(&output).Decode(&entry); err != nil {
+		t.Fatalf("decode access log: %v", err)
+	}
+	for key, want := range map[string]any{
+		"msg": "http access", "method": http.MethodGet, "path": "/api/health",
+		"status": float64(http.StatusOK), "remote_addr": "192.0.2.10", "user_agent": "fleet-webui-test",
+	} {
+		if got := entry[key]; got != want {
+			t.Errorf("access log %s = %#v, want %#v", key, got, want)
+		}
+	}
+	if bytes, ok := entry["bytes"].(float64); !ok || bytes < 1 {
+		t.Errorf("access log bytes = %#v, want a positive number", entry["bytes"])
+	}
+	if strings.Contains(output.String(), "do-not-log") || strings.Contains(output.String(), "token=") {
+		t.Fatalf("access log contains query string: %s", output.String())
 	}
 }
 

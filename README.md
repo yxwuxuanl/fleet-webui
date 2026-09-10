@@ -71,6 +71,8 @@ When `APP_BASE_URL` is configured, ntfy messages link directly to the reconciled
 
 The server applies read-header, read, write, and idle timeouts. Their defaults are documented in [.env.example](.env.example); adjust them when an upstream proxy or unusually slow Fleet API requires a larger request window.
 
+HTTP access logging is enabled by default. Each request emits a structured `http access` entry with its method, URL path, response status and size, duration, direct remote address, and user agent. Query strings are deliberately omitted. Set `ACCESS_LOG_ENABLED=false` to disable these entries.
+
 ## Browser system notifications
 
 The UI offers an opt-in **Enable browser alerts** control below the Git repository list. Once a user allows it, the browser shows a local system notification when that user’s manual reconcile request is accepted or cannot be requested. The opt-in is kept only in that browser, and no ntfy credentials are sent to it.

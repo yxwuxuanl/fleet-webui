@@ -6,8 +6,10 @@ import (
 	"errors"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
 	"sort"
+	"time"
 )
 
 type App struct {
@@ -48,7 +50,70 @@ func (a *App) routes() http.Handler {
 		panic(err)
 	}
 	mux.Handle("/", http.FileServer(http.FS(static)))
-	return a.withHeaders(mux)
+	handler := a.withHeaders(mux)
+	if a.config.AccessLogEnabled {
+		handler = a.withAccessLog(handler)
+	}
+	return handler
+}
+
+type accessLogResponseWriter struct {
+	http.ResponseWriter
+	status int
+	bytes  int
+}
+
+func (w *accessLogResponseWriter) WriteHeader(status int) {
+	if w.status != 0 {
+		return
+	}
+	w.status = status
+	w.ResponseWriter.WriteHeader(status)
+}
+
+func (w *accessLogResponseWriter) Write(body []byte) (int, error) {
+	if w.status == 0 {
+		w.WriteHeader(http.StatusOK)
+	}
+	written, err := w.ResponseWriter.Write(body)
+	w.bytes += written
+	return written, err
+}
+
+func (w *accessLogResponseWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
+func (w *accessLogResponseWriter) statusCode() int {
+	if w.status == 0 {
+		return http.StatusOK
+	}
+	return w.status
+}
+
+func requestRemoteAddress(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err == nil {
+		return host
+	}
+	return r.RemoteAddr
+}
+
+func (a *App) withAccessLog(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		started := time.Now()
+		response := &accessLogResponseWriter{ResponseWriter: w}
+		next.ServeHTTP(response, r)
+		a.logger.Info("http access",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", response.statusCode(),
+			"bytes", response.bytes,
+			"duration", time.Since(started),
+			"remote_addr", requestRemoteAddress(r),
+			"user_agent", r.UserAgent(),
+		)
+	})
 }
 
 func (a *App) withHeaders(next http.Handler) http.Handler {

@@ -105,6 +105,7 @@ SSH Secrets must include `ssh-privatekey` and `known_hosts`; HTTPS Secrets may u
 | `managedObjects.downstreamKubeconfigs` | `false` | Read Fleet Cluster kubeconfig Secrets to retrieve YAML from remote clusters. |
 | `gitHistory.enabled` | `false` | Read recent commits using each GitRepo credential Secret. |
 | `gitRepoActions.enabled` | `true` | Enable sync-now and revision pin/resume with GitRepo patch RBAC. |
+| `server.accessLogEnabled` | `true` | Log method, path, status, response size, duration, direct remote address, and user agent for each HTTP request. |
 | `reconcile.enabled` | `true` | Enable confirmation-based manual reconcile and Bundle patch RBAC. |
 | `ntfy.enabled` | `false` | Configure the fixed ntfy channel. |
 | `ntfy.existingSecret` | empty | Secret containing `ntfy.tokenKey`. |

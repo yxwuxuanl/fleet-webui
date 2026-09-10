@@ -27,6 +27,7 @@ type Config struct {
 	NtfyToken                 string
 	AppBaseURL                string
 	RequestTimeout            time.Duration
+	AccessLogEnabled          bool
 	HTTPReadHeaderTimeout     time.Duration
 	HTTPReadTimeout           time.Duration
 	HTTPWriteTimeout          time.Duration
@@ -58,6 +59,7 @@ func loadConfig() Config {
 		NtfyToken:                 os.Getenv("NTFY_TOKEN"),
 		AppBaseURL:                strings.TrimRight(os.Getenv("APP_BASE_URL"), "/"),
 		RequestTimeout:            envSeconds("REQUEST_TIMEOUT_SECONDS", 12),
+		AccessLogEnabled:          envBool("ACCESS_LOG_ENABLED", true),
 		HTTPReadHeaderTimeout:     envSeconds("HTTP_READ_HEADER_TIMEOUT_SECONDS", 5),
 		HTTPReadTimeout:           envSeconds("HTTP_READ_TIMEOUT_SECONDS", 15),
 		HTTPWriteTimeout:          envSeconds("HTTP_WRITE_TIMEOUT_SECONDS", 90),
