@@ -12,9 +12,6 @@ rules:
   - apiGroups: ["fleet.cattle.io"]
     resources: ["bundles", "gitrepos", "clusters", "bundledeployments"]
     verbs: ["get", "list", "watch"]
-  - apiGroups: ["fleet.cattle.io"]
-    resources: ["bundles", "gitrepos"]
-    verbs: ["patch"]
   - apiGroups: [""]
     resources: ["secrets"]
     verbs: ["get"]
@@ -54,7 +51,7 @@ spec:
           imagePullPolicy: IfNotPresent
           env:
             - name: RECONCILE_ENABLED
-              value: "true"
+              value: "false"
             - name: MANAGED_OBJECTS_YAML_ENABLED
               value: "false"
             - name: MANAGED_OBJECTS_DOWNSTREAM_KUBECONFIGS
@@ -62,7 +59,7 @@ spec:
             - name: GIT_HISTORY_ENABLED
               value: "true"
             - name: GIT_REPO_ACTIONS_ENABLED
-              value: "true"
+              value: "false"
           ports:
             - name: http
               containerPort: 8080

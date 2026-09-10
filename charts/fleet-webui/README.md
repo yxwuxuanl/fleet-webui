@@ -32,10 +32,11 @@ Opening reconcile displays a confirmation dialog. Confirming it increments the B
 ```sh
 helm upgrade --install fleet-webui ./charts/fleet-webui \
   --namespace cattle-fleet-system \
-  --set reconcile.enabled=false
+  --set reconcile.enabled=false \
+  --set gitRepoActions.enabled=false
 ```
 
-The example above disables the endpoint and removes Bundle `patch` permission for a read-only installation. Because the reconcile endpoint itself has no authentication challenge, expose the console only through your private access-control layer.
+The example above disables both Bundle and GitRepo writes and removes both `patch` permissions for a read-only installation. Setting only `reconcile.enabled=false` leaves GitRepo actions enabled. Expose the console only through your private access-control layer; preserve Host, Origin and Sec-Fetch-Site headers so the server can validate browser requests.
 
 ## ntfy notifications
 

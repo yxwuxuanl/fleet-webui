@@ -50,7 +50,20 @@ export default function BundlesView({
   const [status, setStatus] = useState("all");
   const [workspace, setWorkspace] = useState("all");
   const [page, setPage] = useState(1);
-  const [selected, setSelected] = useState<BundleView | null>(null);
+  const [selectedID, setSelectedID] = useState<string | null>(
+    () => new URLSearchParams(window.location.search).get("bundle"),
+  );
+  const selected = bundles.find(
+    (bundle) => `${bundle.namespace}/${bundle.name}` === selectedID,
+  ) ?? null;
+  function setSelected(bundle: BundleView | null) {
+    const id = bundle ? `${bundle.namespace}/${bundle.name}` : null;
+    setSelectedID(id);
+    const url = new URL(window.location.href);
+    if (id) url.searchParams.set("bundle", id);
+    else url.searchParams.delete("bundle");
+    window.history.replaceState({}, "", url);
+  }
   const [reconcileBundle, setReconcileBundle] = useState<BundleView | null>(
     null,
   );
@@ -94,21 +107,12 @@ export default function BundlesView({
   }, [attentionOnly, bundles, search, status, workspace]);
   useEffect(() => setPage(1), [attentionOnly, search, status, workspace]);
   useEffect(() => {
-    const param = new URLSearchParams(window.location.search).get("bundle");
-    if (!param || !bundles.length) return;
-    const [namespace, name] = param.split("/");
-    const match = bundles.find(
-      (item) => item.namespace === namespace && item.name === name,
+    const onPopState = () => setSelectedID(
+      new URLSearchParams(window.location.search).get("bundle"),
     );
-    if (match) setSelected(match);
-  }, [bundles]);
-  useEffect(() => {
-    const url = new URL(window.location.href);
-    if (selected)
-      url.searchParams.set("bundle", `${selected.namespace}/${selected.name}`);
-    else url.searchParams.delete("bundle");
-    window.history.replaceState({}, "", url);
-  }, [selected]);
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   const healthy = bundles.filter(
     (bundle) => statusKind(bundle.health) === "healthy",

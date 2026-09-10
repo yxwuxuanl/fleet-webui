@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   RiGitCommitLine,
   RiGitRepositoryLine,
@@ -269,28 +269,43 @@ export function BundleDetailDrawer({
   );
 }
 
-export function RepositoryDetailDrawer({
-  repo,
-  open,
-  onOpenChange,
-}: {
+type RepositoryDrawerProps = {
   repo: GitRepoView | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}) {
+};
+
+export function RepositoryDetailDrawer(props: RepositoryDrawerProps) {
+  if (!props.open || !props.repo) return null;
+  return (
+    <RepositoryDetailContent
+      key={`${props.repo.namespace}/${props.repo.name}`}
+      {...props}
+    />
+  );
+}
+
+function RepositoryDetailContent({
+  repo,
+  open,
+  onOpenChange,
+}: RepositoryDrawerProps) {
   const [detail, setDetail] = useState<GitRepoDetail | null>(null);
   const [error, setError] = useState("");
   const [history, setHistory] = useState<GitHistory | null>(null);
   const [historyError, setHistoryError] = useState("");
   const [busy, setBusy] = useState("");
   const [pendingRevision, setPendingRevision] = useState<string | null>(null);
+  const lifetime = useRef<AbortController | null>(null);
   const loadRepository = useCallback(async () => {
-    if (!repo) return;
+    const signal = lifetime.current?.signal;
+    if (!repo || !signal || signal.aborted) return;
     const base = `/api/gitrepos/${encodeURIComponent(repo.namespace)}/${encodeURIComponent(repo.name)}`;
     const [detailResult, historyResult] = await Promise.allSettled([
-      api<GitRepoDetail>(base),
-      api<GitHistory>(`${base}/history?limit=10`),
+      api<GitRepoDetail>(base, { signal }),
+      api<GitHistory>(`${base}/history?limit=10`, { signal }),
     ]);
+    if (signal.aborted) return;
     if (detailResult.status === "fulfilled") setDetail(detailResult.value);
     else setError(detailResult.reason instanceof Error ? detailResult.reason.message : String(detailResult.reason));
     if (historyResult.status === "fulfilled") setHistory(historyResult.value);
@@ -298,44 +313,52 @@ export function RepositoryDetailDrawer({
   }, [repo]);
   useEffect(() => {
     if (!open || !repo) return;
+    const controller = new AbortController();
+    lifetime.current = controller;
     setDetail(null);
     setError("");
     setHistory(null);
     setHistoryError("");
     setPendingRevision(null);
     void loadRepository();
+    return () => controller.abort();
   }, [loadRepository, open, repo]);
 
   async function syncNow() {
-    if (!repo) return;
+    const signal = lifetime.current?.signal;
+    if (!repo || !signal || signal.aborted) return;
     setBusy("sync");
     setError("");
     try {
-      await api(`/api/gitrepos/${encodeURIComponent(repo.namespace)}/${encodeURIComponent(repo.name)}/sync`, { method: "POST" });
+      await api(`/api/gitrepos/${encodeURIComponent(repo.namespace)}/${encodeURIComponent(repo.name)}/sync`, { method: "POST", signal });
+      if (signal.aborted) return;
       await loadRepository();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      if (!signal.aborted) setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
-      setBusy("");
+      if (!signal.aborted) setBusy("");
     }
   }
 
   async function setRevision(revision: string) {
-    if (!repo) return;
+    const signal = lifetime.current?.signal;
+    if (!repo || !signal || signal.aborted) return;
     setBusy(revision || "resume");
     setError("");
     try {
       await api(`/api/gitrepos/${encodeURIComponent(repo.namespace)}/${encodeURIComponent(repo.name)}/revision`, {
         method: "POST",
+        signal,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ revision }),
       });
+      if (signal.aborted) return;
       setPendingRevision(null);
       await loadRepository();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      if (!signal.aborted) setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
-      setBusy("");
+      if (!signal.aborted) setBusy("");
     }
   }
   if (!repo) return null;

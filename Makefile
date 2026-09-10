@@ -3,7 +3,21 @@ IMAGE_TAG ?= $(shell git rev-parse --short=7 HEAD)-amd64
 IMAGE_PLATFORM ?= linux/amd64
 IMAGE = $(IMAGE_REPOSITORY):$(IMAGE_TAG)
 
-.PHONY: image image-push image-name
+.PHONY: run build test frontend-build image image-push image-name
+
+run: frontend-build
+	go run .
+
+build: frontend-build
+	go build -trimpath -o fleet-webui .
+
+test: frontend-build
+	go test -race ./...
+	go vet ./...
+
+frontend-build:
+	npm --prefix frontend ci
+	npm --prefix frontend run build
 
 image:
 	docker buildx build \

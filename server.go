@@ -41,16 +41,16 @@ func (a *App) routes() http.Handler {
 	mux.HandleFunc("GET /api/bundledeployments/{namespace}/{name}/managed-object/logs", a.handleManagedObjectLogs)
 	mux.HandleFunc("POST /api/bundles/{namespace}/{name}/reconcile", a.handleReconcile)
 
-	staticRoot := "web"
-	if _, err := fs.Stat(webFS, "web/dist/index.html"); err == nil {
-		staticRoot = "web/dist"
-	}
-	static, err := fs.Sub(webFS, staticRoot)
+	static, err := fs.Sub(frontendFS, "frontend/dist")
 	if err != nil {
 		panic(err)
 	}
 	mux.Handle("/", http.FileServer(http.FS(static)))
-	handler := a.withHeaders(mux)
+	protection := http.NewCrossOriginProtection()
+	protection.SetDenyHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeError(w, http.StatusForbidden, errors.New("cross-origin write requests are not allowed"))
+	}))
+	handler := a.withHeaders(protection.Handler(mux))
 	if a.config.AccessLogEnabled {
 		handler = a.withAccessLog(handler)
 	}

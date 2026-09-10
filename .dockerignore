@@ -3,6 +3,6 @@
 .env.*
 frontend/node_modules
 frontend/*.tsbuildinfo
-web/dist
+frontend/dist
 fleet-webui
 coverage.out

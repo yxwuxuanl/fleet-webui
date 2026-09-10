@@ -16,6 +16,8 @@ import (
 	"strings"
 
 	"github.com/pmezard/go-difflib/difflib"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/yaml"
 )
@@ -295,38 +297,35 @@ type podList struct {
 	} `json:"items"`
 }
 
-func workloadSelector(object map[string]any) map[string]any {
+func workloadSelector(object map[string]any) (labels.Selector, error) {
 	spec, _ := object["spec"].(map[string]any)
 	selector, _ := spec["selector"].(map[string]any)
-	labels, _ := selector["matchLabels"].(map[string]any)
-	return labels
-}
-
-func selectorString(labels map[string]any) string {
-	keys := make([]string, 0, len(labels))
-	for key := range labels {
-		keys = append(keys, key)
+	encoded, err := json.Marshal(selector)
+	if err != nil {
+		return nil, err
 	}
-	sort.Strings(keys)
-	parts := make([]string, 0, len(keys))
-	for _, key := range keys {
-		parts = append(parts, key+"="+fmt.Sprint(labels[key]))
+	var parsed metav1.LabelSelector
+	if err := json.Unmarshal(encoded, &parsed); err != nil {
+		return nil, err
 	}
-	return strings.Join(parts, ",")
+	return metav1.LabelSelectorAsSelector(&parsed)
 }
 
 func (c *kubeObjectClient) pods(ctx context.Context, resource BundleDeploymentResource, object map[string]any) []ManagedObjectPodView {
-	selector := selectorString(workloadSelector(object))
-	if resource.Namespace == "" || selector == "" {
+	selector, err := workloadSelector(object)
+	if err != nil || resource.Namespace == "" || selector.Empty() {
 		return nil
 	}
-	endpoint := c.baseURL + "/api/v1/namespaces/" + url.PathEscape(resource.Namespace) + "/pods?" + url.Values{"labelSelector": {selector}}.Encode()
+	endpoint := c.baseURL + "/api/v1/namespaces/" + url.PathEscape(resource.Namespace) + "/pods?" + url.Values{"labelSelector": {selector.String()}}.Encode()
 	var result podList
 	if err := c.getJSON(ctx, endpoint, &result); err != nil {
 		return nil
 	}
 	views := make([]ManagedObjectPodView, 0, len(result.Items))
 	for _, pod := range result.Items {
+		if !selector.Matches(labels.Set(pod.Metadata.Labels)) {
+			continue
+		}
 		view := ManagedObjectPodView{Name: pod.Metadata.Name, Namespace: pod.Metadata.Namespace, Phase: pod.Status.Phase, Containers: len(pod.Spec.Containers)}
 		for _, container := range pod.Spec.Containers {
 			view.ContainerNames = append(view.ContainerNames, container.Name)
@@ -384,6 +383,10 @@ func (c *FleetClient) managedObjectDiagnostics(ctx context.Context, deployment B
 }
 
 func (a *App) handleManagedObjectLogs(w http.ResponseWriter, r *http.Request) {
+	if !a.config.ManagedObjectsEnabled {
+		writeError(w, http.StatusServiceUnavailable, errManagedObjectsDisabled)
+		return
+	}
 	namespace, name := r.PathValue("namespace"), r.PathValue("name")
 	deployment, err := a.fleet.getBundleDeployment(r.Context(), namespace, name)
 	if err != nil {

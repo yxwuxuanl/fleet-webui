@@ -13,4 +13,4 @@ coverage.out
 # Frontend dependencies and generated output
 /frontend/node_modules/
 /frontend/*.tsbuildinfo
-/web/dist/
+/frontend/dist/

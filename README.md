@@ -4,11 +4,21 @@ A Go-based web console for Rancher Fleet. It lists Fleet status, can request a c
 
 ## Run locally
 
+Requires Go 1.27+, Node.js 22.12+ and npm. From a fresh clone:
+
 ```sh
-go run .
+make run
 ```
 
-Open `http://localhost:8080`. Configure a local kubeconfig or direct Fleet API endpoint before opening the console. If no Fleet connection is available, the UI keeps a visible connection error instead of sample resources. Manual reconcile is enabled by default; set `RECONCILE_ENABLED=false` for read-only mode.
+`make run` installs the locked frontend dependencies, builds the React app into `frontend/dist/`, and starts Go with those assets embedded. `make build` creates a standalone binary; `make test` builds the frontend and runs Go tests with race detection plus `go vet`. Build the frontend before invoking `go run .`, `go build`, or `go test` directly. There is no legacy frontend fallback.
+
+Open `http://localhost:8080`. Configure a local kubeconfig or direct Fleet API endpoint before opening the console. If no Fleet connection is available, the UI keeps a visible connection error instead of sample resources. Bundle reconcile and GitRepo actions have independent switches. For read-only mode, disable both:
+
+```sh
+RECONCILE_ENABLED=false GIT_REPO_ACTIONS_ENABLED=false make run
+```
+
+For frontend development, run `npm --prefix frontend run dev` in another terminal after starting the Go server. Vite proxies `/api` requests to it.
 
 ## Connect Rancher Fleet
 
@@ -21,14 +31,14 @@ Outside a Pod, the application loads `$KUBECONFIG` or `~/.kube/config` when pres
 ```sh
 export FLEET_KUBECONFIG="$HOME/.kube/config"
 export FLEET_KUBECONTEXT=your-context # optional
-go run .
+make run
 ```
 
 ### In-cluster
 
 When running in a Pod, the app detects `KUBERNETES_SERVICE_HOST` and `KUBERNETES_SERVICE_PORT` and uses the mounted ServiceAccount token and CA at the standard Kubernetes paths. No connection-mode environment variable is required.
 
-The included [RBAC manifest](deploy/rbac.yaml) grants the list/read permissions needed by the console plus Bundle `patch` for manual reconcile. The Helm chart removes Bundle `patch` permission when `reconcile.enabled=false`. Bind either deployment only to the namespaces/clusters the console should manage.
+The included [RBAC manifest](deploy/rbac.yaml) is read-only: both write switches are off and no `patch` permission is granted. The Helm chart removes Bundle `patch` permission when `reconcile.enabled=false` and GitRepo `patch` permission when `gitRepoActions.enabled=false`. Set both to `false` for a read-only Helm installation. Bind either deployment only to the namespaces/clusters the console should manage.
 
 ### Direct Rancher API
 
@@ -49,6 +59,8 @@ The Bundle detail drawer lists objects reported by each matching `BundleDeployme
 
 Set `MANAGED_OBJECTS_DOWNSTREAM_KUBECONFIGS=true` to read remote-cluster objects through the kubeconfig Secret referenced by the Fleet Cluster. This requires `get` access to those Secrets. The Helm chart keeps both live YAML and downstream kubeconfig access disabled by default because arbitrary Bundle kinds require broad get-only Kubernetes RBAC; enable them only for a private HTTPS console.
 
+Clusters with a kubeconfig Secret are never queried through the management-cluster connection: disabled downstream access or invalid credentials return an error. Disabling `MANAGED_OBJECTS_YAML_ENABLED` also disables diagnostics and container-log access, even if the Kubernetes identity still has permission.
+
 ## Git history and operational rollback
 
 Set `GIT_HISTORY_ENABLED=true` to load recent commits directly from each GitRepo. Private SSH repositories reuse `spec.clientSecretName`; the Secret must contain `ssh-privatekey` and `known_hosts`. HTTPS repositories may use `username` plus `password` or `token`. Credentials remain server-side.
@@ -57,7 +69,9 @@ Set `GIT_HISTORY_ENABLED=true` to load recent commits directly from each GitRepo
 
 ## Reconcile and notifications
 
-`POST /api/bundles/{namespace}/{name}/reconcile` does not require a reconcile token. The UI presents a second confirmation dialog before sending the request. Set `RECONCILE_ENABLED=false` to disable the endpoint and run the console in read-only mode.
+`POST /api/bundles/{namespace}/{name}/reconcile` does not require a reconcile token. The UI presents a second confirmation dialog before sending the request. Set `RECONCILE_ENABLED=false` to disable this endpoint; also set `GIT_REPO_ACTIONS_ENABLED=false` for read-only mode.
+
+All write endpoints reject cross-origin browser requests with HTTP 403. Reverse proxies must preserve the original Host, Origin and Sec-Fetch-Site headers. Cross-origin protection does not replace authentication; keep the console behind your private access-control layer.
 
 After confirmation, the endpoint reads the current Bundle, increments `spec.forceSyncGeneration`, and patches it with its current `resourceVersion`. The operation retries conflicts up to three times. Because the endpoint has no authentication challenge of its own, keep Fleet WebUI behind your private access-control layer.
 

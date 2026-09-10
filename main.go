@@ -7,8 +7,8 @@ import (
 	"os"
 )
 
-//go:embed web
-var webFS embed.FS
+//go:embed all:frontend/dist
+var frontendFS embed.FS
 
 func main() {
 	config := loadConfig()

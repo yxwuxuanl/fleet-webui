@@ -61,7 +61,10 @@ func (c *FleetClient) objectClient(ctx context.Context, cluster Cluster) (*kubeO
 	if c.apiMode != "kubernetes" {
 		return nil, errors.New("managed object YAML requires Kubernetes API mode")
 	}
-	if c.config.ManagedObjectsKubeconfigs && cluster.Spec.KubeConfigSecret != "" {
+	if cluster.Spec.KubeConfigSecret != "" {
+		if !c.config.ManagedObjectsKubeconfigs {
+			return nil, errors.New("remote cluster access requires MANAGED_OBJECTS_DOWNSTREAM_KUBECONFIGS=true")
+		}
 		secret, err := c.getKubeconfigSecret(ctx, cluster.Metadata.Namespace, cluster.Spec.KubeConfigSecret)
 		if err != nil {
 			return nil, fmt.Errorf("load downstream kubeconfig for %s/%s: %w", cluster.Metadata.Namespace, cluster.Metadata.Name, err)
