@@ -6,10 +6,10 @@ COPY frontend ./
 RUN npm run build
 
 FROM golang:1.27-alpine AS build
-WORKDIR /src
-COPY go.mod go.sum ./
-COPY *.go ./
-COPY --from=frontend /src/frontend/dist ./frontend/dist
+WORKDIR /src/server
+COPY server/go.mod server/go.sum ./
+COPY server/*.go ./
+COPY --from=frontend /src/server/dist ./dist
 RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /out/fleet-webui .
 
 FROM gcr.io/distroless/static-debian12:nonroot

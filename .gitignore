@@ -8,6 +8,7 @@
 
 # Go build and test output
 /fleet-webui
+/server/fleet-webui
 coverage.out
 /release-output/
 __pycache__/
@@ -15,4 +16,4 @@ __pycache__/
 # Frontend dependencies and generated output
 /frontend/node_modules/
 /frontend/*.tsbuildinfo
-/frontend/dist/
+/server/dist/

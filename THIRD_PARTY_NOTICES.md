@@ -20,7 +20,7 @@ Remix Icon is distributed under **Remix Icon License 1.0**, not MIT. See the [up
 
 ## Go dependencies
 
-`go.mod` and `go.sum` record the Go dependency graph. Main dependencies include go-git, Kubernetes client-go/apimachinery, go-difflib and sigs.k8s.io/yaml. Their own license and notice files remain authoritative. Before distributing binaries or containers, include the notices required by the exact bundled versions.
+`server/go.mod` and `server/go.sum` record the Go dependency graph. Main dependencies include go-git, Kubernetes client-go/apimachinery, go-difflib and sigs.k8s.io/yaml. Their own license and notice files remain authoritative. Before distributing binaries or containers, include the notices required by the exact bundled versions.
 
 ## Components and visual assets
 

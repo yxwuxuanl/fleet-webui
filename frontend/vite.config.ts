@@ -14,7 +14,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: path.resolve(rootDir, "dist"),
+    outDir: path.resolve(rootDir, "../server/dist"),
     emptyOutDir: true,
   },
   server: {

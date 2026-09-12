@@ -37,6 +37,8 @@ Fleet WebUI shares one server-side identity across visitors and has no built-in 
 
 ## Development
 
+The Go module, source and tests live in `server/`; the React source lives in `frontend/`. Frontend builds write to `server/dist/`, which is embedded in the Go binary. Run the following commands from the repository root:
+
 ```sh
 make build  # Build a standalone binary
 make test   # Build the frontend, run Go tests and go vet
@@ -44,5 +46,7 @@ make image  # Build a local linux/amd64 container image
 ```
 
 For frontend development, start the Go server and run `npm --prefix frontend run dev` in another terminal.
+
+After building the frontend, Go commands can also run directly in `server/`, for example `go -C server test ./...` from the repository root.
 
 [Contributing](CONTRIBUTING.md) · [Releases](https://github.com/yxwuxuanl/fleet-webui/releases) · [Changelog](CHANGELOG.md) · [MIT license](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)

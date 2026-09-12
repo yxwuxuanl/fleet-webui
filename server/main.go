@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-//go:embed all:frontend/dist
+//go:embed all:dist
 var frontendFS embed.FS
 
 func main() {

@@ -41,7 +41,7 @@ func (a *App) routes() http.Handler {
 	mux.HandleFunc("GET /api/bundledeployments/{namespace}/{name}/managed-object/logs", a.handleManagedObjectLogs)
 	mux.HandleFunc("POST /api/bundles/{namespace}/{name}/reconcile", a.handleReconcile)
 
-	static, err := fs.Sub(frontendFS, "frontend/dist")
+	static, err := fs.Sub(frontendFS, "dist")
 	if err != nil {
 		panic(err)
 	}

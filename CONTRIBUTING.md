@@ -10,7 +10,9 @@ Install Go 1.27+, Node.js 22.12+, npm and Helm. Docker is needed for image valid
 make run
 ```
 
-For live frontend development, run `npm --prefix frontend run dev` in a second terminal. The production frontend is embedded in the Go binary, so rebuild it before validating the packaged app.
+The Go module, source and tests live in `server/`. Run Make targets from the repository root, or run Go commands in `server/` after building the frontend.
+
+For live frontend development, run `npm --prefix frontend run dev` in a second terminal. The production frontend is built into `server/dist/` and embedded in the Go binary, so rebuild it before validating the packaged app.
 
 Use a test Fleet cluster and a least-privilege identity. To inspect resources without writes:
 
@@ -21,7 +23,7 @@ RECONCILE_ENABLED=false GIT_REPO_ACTIONS_ENABLED=false make run
 ## Before submitting a pull request
 
 ```sh
-gofmt -w ./*.go
+gofmt -w server/*.go
 make test
 make chart-test
 docker build -t fleet-webui:check .
@@ -32,7 +34,7 @@ The Go suite uses local mock services; it does not require cluster credentials. 
 
 For frontend changes, exercise affected controls in a browser, including slow requests and switching resources when relevant. Include the expected and actual behavior, test results, and any remaining limitations in the PR description. Keep screenshots and logs free of private data.
 
-Changes to configuration should update `.env.example`, Helm values/templates and both READMEs together. Keep generated `frontend/dist/`, dependencies and binaries out of Git. Do not add files under the removed `web/` directory.
+Changes to configuration should update `.env.example`, Helm values/templates and both READMEs together. Keep generated `server/dist/`, dependencies and binaries out of Git. Do not add files under the removed `web/` directory.
 
 ## Security and licensing
 

@@ -70,7 +70,7 @@ func assertReadOnlyDeployment(t *testing.T, manifest []byte) {
 }
 
 func TestReadOnlyManifest(t *testing.T) {
-	manifest, err := os.ReadFile("deploy/rbac.yaml")
+	manifest, err := os.ReadFile("../deploy/rbac.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +83,7 @@ func TestHelmConfiguration(t *testing.T) {
 	}
 	for _, name := range []string{"default", "read-only", "diagnostics"} {
 		t.Run(name, func(t *testing.T) {
-			args := []string{"template", "fleet-webui", "charts/fleet-webui"}
+			args := []string{"template", "fleet-webui", "../charts/fleet-webui"}
 			if name == "read-only" {
 				args = append(args, "--set", "reconcile.enabled=false", "--set", "gitRepoActions.enabled=false")
 			}
@@ -99,7 +99,7 @@ func TestHelmConfiguration(t *testing.T) {
 			}
 		})
 	}
-	if output, err := exec.Command("helm", "template", "fleet-webui", "charts/fleet-webui", "--set", "managedObjects.downstreamKubeconfigs=true").CombinedOutput(); err == nil {
+	if output, err := exec.Command("helm", "template", "fleet-webui", "../charts/fleet-webui", "--set", "managedObjects.downstreamKubeconfigs=true").CombinedOutput(); err == nil {
 		t.Fatalf("invalid downstream configuration accepted:\n%s", output)
 	}
 }
