@@ -1,49 +1,28 @@
-name: Release
+name: Development build
 
 on:
   push:
-    tags: ['v*']
+    branches: [main]
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Optional version without v; select the existing version tag as the workflow ref'
-        required: false
-        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: development-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  REQUESTED_VERSION: ${{ inputs.version }}
-
 jobs:
-  validate:
-    if: github.repository == 'yxwuxuanl/fleet-webui'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: azure/setup-helm@bf6a7d304bc2fdb57e0331155b7ebf2c504acf0a # v4
-        with:
-          version: v4.3.0
-      - name: Validate tag, source ancestry and versions
-        run: python3 scripts/pipeline.py prepare --mode release
   verify:
-    needs: validate
+    if: github.ref == 'refs/heads/main'
     uses: ./.github/workflows/ci.yml
   publish:
+    if: github.repository == 'yxwuxuanl/fleet-webui'
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      contents: write
+      contents: read
       packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -55,7 +34,7 @@ jobs:
           version: v4.3.0
       - name: Resolve build identity
         id: meta
-        run: python3 scripts/pipeline.py prepare --mode release
+        run: python3 scripts/pipeline.py prepare --mode development
       - name: Authenticate to GHCR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -104,15 +83,13 @@ jobs:
         env:
           IMAGE: ${{ steps.meta.outputs.image }}
         run: docker push "$IMAGE"
-      - name: Publish or reuse identical OCI chart
-        run: python3 scripts/pipeline.py chart-publish
       - name: Verify anonymous downloads
         run: python3 scripts/pipeline.py verify-public
       - name: Record artifact checksums and image digest
         run: python3 scripts/pipeline.py checksums
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: release-${{ steps.meta.outputs.version }}-${{ github.run_attempt }}
+          name: development-${{ steps.meta.outputs.version }}-${{ github.run_attempt }}
           path: |
             release-output/*.tgz
             release-output/build-info.json
@@ -120,9 +97,10 @@ jobs:
             release-output/LICENSE
             release-output/CHANGELOG.md
           if-no-files-found: error
-          retention-days: 30
-      - name: Publish GitHub Release after all checks pass
+          retention-days: 14
+      - name: Summarize development build
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-        run: python3 scripts/pipeline.py release
+          IMAGE: ${{ steps.meta.outputs.image }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          printf 'Image: `%s`\n\nChart artifact version: `%s`\n' "$IMAGE" "$VERSION" >> "$GITHUB_STEP_SUMMARY"

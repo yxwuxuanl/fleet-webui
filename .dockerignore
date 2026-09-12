@@ -6,3 +6,5 @@ frontend/*.tsbuildinfo
 frontend/dist
 fleet-webui
 coverage.out
+release-output
+**/__pycache__

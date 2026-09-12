@@ -120,6 +120,8 @@ Browser alerts require browser support, an explicit user permission, and HTTPS i
 
 ## Container image
 
+GitHub Actions builds and publishes a `sha-<full-commit>` development image after each successful `main` build. The same run provides a matching Helm chart as a downloadable artifact. Pushing a prepared version tag such as `v0.1.0-rc.1` publishes the versioned image, an OCI chart at `oci://ghcr.io/yxwuxuanl/charts/fleet-webui`, and GitHub Release attachments after validation. See [build and release instructions](docs/RELEASING.md) for versioning, package visibility and installation.
+
 ```sh
 make image
 docker run --rm -p 127.0.0.1:8080:8080 -e RECONCILE_ENABLED=false -e GIT_REPO_ACTIONS_ENABLED=false "$(make image-name)"

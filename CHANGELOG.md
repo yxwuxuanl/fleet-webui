@@ -10,6 +10,7 @@
 - Cross-origin write protection, diagnostic feature gates and downstream connection checks.
 - Correct Pod selector expressions, resource-switch isolation and notification deep links.
 - A single embedded React frontend, container build and Helm deployment.
-- Read-only deployment examples, automated checks and a manual draft-release workflow.
+- Read-only deployment examples and automated checks.
+- Automatic development image builds, version-tag image and OCI Helm chart releases, package checksums, and temporary Kubernetes installation checks.
 
 No public release or production compatibility matrix has been verified yet.

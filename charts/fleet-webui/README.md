@@ -87,7 +87,7 @@ SSH Secrets must include `ssh-privatekey` and `known_hosts`; HTTPS Secrets may u
 | Value | Default | Description |
 | --- | --- | --- |
 | `image.repository` | `ghcr.io/yxwuxuanl/fleet-webui` | Container image repository. |
-| `image.tag` | `0.1.0` | Container image tag. |
+| `image.tag` | `""` | Uses Chart `appVersion` when empty; can override the container image tag. |
 | `rbac.create` | `true` | Create the ClusterRole and ClusterRoleBinding. |
 | `fleet.pageSize` | `250` | Maximum Fleet resources requested per upstream page. |
 | `fleet.cacheTTLSeconds` | `10` | Shared in-process list cache lifetime. |
