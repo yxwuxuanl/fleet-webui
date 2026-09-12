@@ -81,6 +81,23 @@ class PublishingGuards(unittest.TestCase):
             self.assertEqual(args[:2], ("docker", "--config"))
             self.assertEqual(args[3:], ("pull", "--platform", "linux/amd64", data["image"]))
 
+    def test_public_chart_check_cannot_fall_back_to_docker_login(self):
+        data = dict(mode="release", version="1.0.0", image="ghcr.io/owner/repo:1.0.0",
+                    chartRegistry="oci://ghcr.io/owner/charts")
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / "fleet-webui-1.0.0.tgz"
+            archive.write_bytes(b"chart archive")
+
+            def fake_run(*args, **kwargs):
+                if args[0] == "helm":
+                    destination = args[args.index("--destination") + 1]
+                    self.assertEqual(kwargs["env"]["DOCKER_CONFIG"], destination)
+                    self.assertEqual(args[args.index("--registry-config") + 1], destination + "/registry.json")
+                    (Path(destination) / archive.name).write_bytes(archive.read_bytes())
+
+            with patch.object(pipeline, "context", return_value=data), patch.object(pipeline, "OUT", Path(directory)), patch.object(pipeline, "run", side_effect=fake_run):
+                pipeline.verify_public()
+
 
 if __name__ == "__main__":
     unittest.main()

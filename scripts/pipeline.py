@@ -18,8 +18,8 @@ CONTEXT = OUT / "context.json"
 SEMVER = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z.-]+))?")
 
 
-def run(*args, check=True):
-    result = subprocess.run(args, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+def run(*args, check=True, env=None):
+    result = subprocess.run(args, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
     if check and result.returncode:
         raise RuntimeError(f"{args[0]} failed: {result.stderr.strip()}")
     return result
@@ -174,7 +174,8 @@ def verify_public():
         if data["mode"] == "release":
             archive = OUT / f"fleet-webui-{data['version']}.tgz"
             run("helm", "pull", f"{data['chartRegistry']}/fleet-webui", "--version", data["version"],
-                "--registry-config", f"{directory}/registry.json", "--destination", directory)
+                "--registry-config", f"{directory}/registry.json", "--destination", directory,
+                env={**os.environ, "DOCKER_CONFIG": directory})
             if hashlib.sha256((Path(directory) / archive.name).read_bytes()).digest() != hashlib.sha256(archive.read_bytes()).digest():
                 raise ValueError("Public chart differs from release artifact")
 
