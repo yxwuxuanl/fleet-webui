@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — preparing 0.1.0
+## 0.1.0-rc.1
 
 - React console for Fleet Bundles, GitRepos, Clusters and BundleDeployments.
 - Desired/Live YAML, normalized diffs, Kubernetes events and workload container logs.
@@ -13,4 +13,4 @@
 - Read-only deployment examples and automated checks.
 - Automatic development image builds, version-tag image and OCI Helm chart releases, package checksums, and temporary Kubernetes installation checks.
 
-No public release or production compatibility matrix has been verified yet.
+First preview release. Automated checks cover container startup and Helm installation on a temporary Kubernetes cluster. A production Rancher/Fleet compatibility matrix has not been verified.

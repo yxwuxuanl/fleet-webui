@@ -2,7 +2,7 @@
 
 An independent web console for Rancher Fleet, built with Go and React. Inspect GitOps deployment health, diagnose managed Kubernetes resources, and perform confirmed sync and revision operations.
 
-This is a community project, not an official Rancher product. The first public release is being prepared; versioned installation examples require the corresponding image to have been published.
+This is a community project, not an official Rancher product. See [GitHub Releases](https://github.com/yxwuxuanl/fleet-webui/releases) for available preview versions, container images and Helm charts.
 
 ## Features
 

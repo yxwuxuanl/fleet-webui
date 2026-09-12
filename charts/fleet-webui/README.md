@@ -1,6 +1,6 @@
 # fleet-webui Helm chart
 
-Deploys Fleet WebUI using the automatically detected Pod ServiceAccount to access the Fleet CRDs. The default image is `ghcr.io/yxwuxuanl/fleet-webui:0.1.0`.
+Deploys Fleet WebUI using the automatically detected Pod ServiceAccount to access the Fleet CRDs. The default image is `ghcr.io/yxwuxuanl/fleet-webui:0.1.0-rc.1`.
 
 ## Install
 
@@ -12,7 +12,7 @@ helm upgrade --install fleet-webui ./charts/fleet-webui \
 
 The chart creates a ClusterRole and ClusterRoleBinding so the WebUI can list Fleet resources across namespaces. Manual reconcile is enabled by default and adds Bundle `patch` permission.
 
-The first release is in preparation. Publish the image before installing, or override `image.repository` and `image.tag` with an image you have built and published. If the GHCR package is private, configure `imagePullSecrets` with your registry credentials.
+Choose an available version from [GitHub Releases](https://github.com/yxwuxuanl/fleet-webui/releases). Versioned charts are published at `oci://ghcr.io/yxwuxuanl/charts/fleet-webui`; see [release instructions](../../docs/RELEASING.md) for installation. For a custom image, override `image.repository` and `image.tag`. If its registry is private, configure `imagePullSecrets` with your registry credentials.
 
 ## Manual reconcile
 
