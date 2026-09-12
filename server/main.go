@@ -17,9 +17,6 @@ func main() {
 	if err := app.fleet.ready(); err != nil {
 		app.logger.Error("Fleet connection could not be initialized", "error", err)
 	}
-	if config.NtfyBaseURL != "" && config.NtfyTopic != "" {
-		app.logger.Info("ntfy notification channel configured", "url", config.NtfyBaseURL, "topic", config.NtfyTopic)
-	}
 	if !config.ReconcileEnabled {
 		app.logger.Warn("manual reconcile is disabled by RECONCILE_ENABLED")
 	}

@@ -214,7 +214,6 @@ export default function App() {
         ) : null}
         {view === "settings" ? (
           <SettingsView
-            notificationConfigured={health.notificationConfigured}
             reconcileEnabled={health.reconcileEnabled}
             gitHistoryEnabled={Boolean(health.gitHistoryEnabled)}
             gitRepoActionsEnabled={Boolean(health.gitRepoActionsEnabled)}

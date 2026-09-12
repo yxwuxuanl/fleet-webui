@@ -1,6 +1,3 @@
-{{- if and .Values.ntfy.enabled (not .Values.ntfy.existingSecret) }}
-{{- fail "ntfy.existingSecret is required when ntfy.enabled is true" }}
-{{- end }}
 {{- if and .Values.managedObjects.downstreamKubeconfigs (not .Values.managedObjects.enabled) }}
 {{- fail "managedObjects.enabled must be true when managedObjects.downstreamKubeconfigs is true" }}
 {{- end }}
@@ -73,21 +70,6 @@ spec:
               value: {{ .Values.server.idleTimeoutSeconds | quote }}
             - name: RECONCILE_ENABLED
               value: {{ .Values.reconcile.enabled | quote }}
-            {{- with .Values.appBaseURL }}
-            - name: APP_BASE_URL
-              value: {{ . | quote }}
-            {{- end }}
-            {{- if .Values.ntfy.enabled }}
-            - name: NTFY_BASE_URL
-              value: {{ required "ntfy.baseURL is required when ntfy.enabled is true" .Values.ntfy.baseURL | quote }}
-            - name: NTFY_TOPIC
-              value: {{ required "ntfy.topic is required when ntfy.enabled is true" .Values.ntfy.topic | quote }}
-            - name: NTFY_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.ntfy.existingSecret }}
-                  key: {{ .Values.ntfy.tokenKey }}
-            {{- end }}
           livenessProbe:
             {{- toYaml .Values.livenessProbe | nindent 12 }}
           readinessProbe:

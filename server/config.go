@@ -22,10 +22,6 @@ type Config struct {
 	GitHistoryEnabled         bool
 	GitRepoActionsEnabled     bool
 	ReconcileEnabled          bool
-	NtfyBaseURL               string
-	NtfyTopic                 string
-	NtfyToken                 string
-	AppBaseURL                string
 	RequestTimeout            time.Duration
 	AccessLogEnabled          bool
 	HTTPReadHeaderTimeout     time.Duration
@@ -54,10 +50,6 @@ func loadConfig() Config {
 		GitHistoryEnabled:         envBool("GIT_HISTORY_ENABLED", true),
 		GitRepoActionsEnabled:     envBool("GIT_REPO_ACTIONS_ENABLED", true),
 		ReconcileEnabled:          envBool("RECONCILE_ENABLED", true),
-		NtfyBaseURL:               strings.TrimRight(os.Getenv("NTFY_BASE_URL"), "/"),
-		NtfyTopic:                 os.Getenv("NTFY_TOPIC"),
-		NtfyToken:                 os.Getenv("NTFY_TOKEN"),
-		AppBaseURL:                strings.TrimRight(os.Getenv("APP_BASE_URL"), "/"),
 		RequestTimeout:            envSeconds("REQUEST_TIMEOUT_SECONDS", 12),
 		AccessLogEnabled:          envBool("ACCESS_LOG_ENABLED", true),
 		HTTPReadHeaderTimeout:     envSeconds("HTTP_READ_HEADER_TIMEOUT_SECONDS", 5),

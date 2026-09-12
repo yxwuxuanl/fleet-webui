@@ -1,6 +1,6 @@
 # fleet-webui Helm chart
 
-Deploys Fleet WebUI using the automatically detected Pod ServiceAccount to access the Fleet CRDs. The default image is `ghcr.io/yxwuxuanl/fleet-webui:0.1.0`.
+Deploys Fleet WebUI using the automatically detected Pod ServiceAccount to access the Fleet CRDs. The default image is `ghcr.io/yxwuxuanl/fleet-webui:0.1.1`.
 
 ## Install
 
@@ -26,26 +26,6 @@ helm upgrade --install fleet-webui ./charts/fleet-webui \
 ```
 
 The example above disables both Bundle and GitRepo writes and removes both `patch` permissions for a read-only installation. Setting only `reconcile.enabled=false` leaves GitRepo actions enabled. Expose the console only through your private access-control layer; preserve Host, Origin and Sec-Fetch-Site headers so the server can validate browser requests.
-
-## ntfy notifications
-
-Create a Secret with the ntfy token first:
-
-```sh
-kubectl -n cattle-fleet-system create secret generic fleet-webui-ntfy \
-  --from-literal=token='REPLACE_ME'
-```
-
-Then enable it during install or upgrade:
-
-```sh
-helm upgrade --install fleet-webui ./charts/fleet-webui \
-  --namespace cattle-fleet-system \
-  --set ntfy.enabled=true \
-  --set ntfy.baseURL=https://ntfy.example.com \
-  --set ntfy.topic=fleet-reconcile-your-topic \
-  --set ntfy.existingSecret=fleet-webui-ntfy
-```
 
 ## Managed object diagnostics
 
@@ -97,6 +77,4 @@ SSH Secrets must include `ssh-privatekey` and `known_hosts`; HTTPS Secrets may u
 | `gitRepoActions.enabled` | `true` | Enable sync-now and revision pin/resume with GitRepo patch RBAC. |
 | `server.accessLogEnabled` | `true` | Log method, path, status, response size, duration, direct remote address, and user agent for each HTTP request. |
 | `reconcile.enabled` | `true` | Enable confirmation-based manual reconcile and Bundle patch RBAC. |
-| `ntfy.enabled` | `false` | Configure the fixed ntfy channel. |
-| `ntfy.existingSecret` | empty | Secret containing `ntfy.tokenKey`. |
 | `ingress.enabled` | `false` | Create an Ingress resource. |

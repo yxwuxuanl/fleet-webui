@@ -10,7 +10,6 @@ import type {
 const initialHealth: HealthStatus = {
   mode: "unconfigured",
   connectionError: "",
-  notificationConfigured: false,
   reconcileEnabled: false,
 };
 

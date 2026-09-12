@@ -1,7 +1,6 @@
 export interface HealthStatus {
   mode: "direct" | "kubeconfig" | "in-cluster" | "unconfigured" | string;
   connectionError: string;
-  notificationConfigured: boolean;
   reconcileEnabled: boolean;
   managedObjectsYAMLEnabled?: boolean;
   gitHistoryEnabled?: boolean;
@@ -93,7 +92,6 @@ export interface GitRepoDetail extends GitRepoView {
 export interface ReconcileResult {
   bundle: BundleView;
   generation: number;
-  notification: "sent" | "failed" | "not-configured" | string;
 }
 
 export interface ClusterView {

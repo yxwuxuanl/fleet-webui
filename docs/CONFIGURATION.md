@@ -54,8 +54,6 @@ Private repositories reuse the Secret referenced by `GitRepo.spec.clientSecretNa
 
 Pinning a commit sets `GitRepo.spec.revision` and pauses branch updates. **Resume branch** clears it. These operations change what Fleet deploys without rewriting Git history.
 
-## Notifications
-
-Set `NTFY_BASE_URL` and `NTFY_TOPIC` to notify on accepted Bundle reconciles. Store `NTFY_TOKEN` in a Secret or secret manager. Set `APP_BASE_URL` to include a link back to the Bundle. A notification failure does not undo an accepted reconcile.
+## Browser notifications
 
 Browser notifications can be enabled through **Enable alerts** in Settings. They require browser permission and HTTPS, except on localhost, and work while the console is open.

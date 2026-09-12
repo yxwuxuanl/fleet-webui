@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1
+
+- Remove ntfy delivery, its environment variables, Helm configuration and setup instructions.
+- Remove `notificationConfigured` from health responses and `notification` from reconcile responses. Reconcile responses now contain `bundle` and `generation`.
+- Remove ntfy delivery status from Settings and reconcile success messages.
+
 ## 0.1.0
 
 First stable release, retaining the Fleet console features introduced in 0.1.0-rc.1.

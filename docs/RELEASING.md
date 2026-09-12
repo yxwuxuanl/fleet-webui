@@ -28,17 +28,17 @@ Actions are pinned to commit SHAs. Docker builds use a GitHub Actions cache. The
 ## Prepare a release
 
 1. Update chart `version` and `appVersion`, frontend package/lockfile version, raw deployment image and changelog together. Stable versions are `X.Y.Z`; previews can use `X.Y.Z-rc.N`. Build metadata (`+...`) is not accepted.
-2. Merge the version commit to `main`, wait for Development build, then push a tag on that exact commit. For example, for the prepared 0.1.0 release:
+2. Merge the version commit to `main`, wait for Development build, then push a tag on that exact commit. For example, for the prepared 0.1.1 release:
 
    ```sh
-   git tag v0.1.0
-   git push origin v0.1.0
+   git tag v0.1.1
+   git push origin v0.1.1
    ```
 
 3. The tag automatically triggers Release. A manual recovery run must select that same tag:
 
    ```sh
-   gh workflow run release.yml --repo yxwuxuanl/fleet-webui --ref v0.1.0
+   gh workflow run release.yml --repo yxwuxuanl/fleet-webui --ref v0.1.1
    ```
 
 The workflow rejects branch runs, malformed versions, metadata mismatches and tags whose commits are not ancestors of `origin/main`. It checks the tag's source rather than the current branch head.
@@ -62,7 +62,7 @@ Choose a version that appears on the repository's Releases page:
 
 ```sh
 helm upgrade --install fleet-webui oci://ghcr.io/yxwuxuanl/charts/fleet-webui \
-  --version 0.1.0 \
+  --version 0.1.1 \
   --namespace cattle-fleet-system --create-namespace \
   --set reconcile.enabled=false --set gitRepoActions.enabled=false
 ```

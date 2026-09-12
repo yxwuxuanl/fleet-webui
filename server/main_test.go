@@ -383,57 +383,14 @@ func TestAPIListsAndReconcilesBundle(t *testing.T) {
 		t.Fatalf("reconcile status = %d, want %d", response.StatusCode, http.StatusAccepted)
 	}
 	var result struct {
-		Bundle       BundleView `json:"bundle"`
-		Generation   int64      `json:"generation"`
-		Notification string     `json:"notification"`
+		Bundle     BundleView `json:"bundle"`
+		Generation int64      `json:"generation"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
 		t.Fatalf("decode reconcile result: %v", err)
 	}
 	if result.Generation != bundle.ForceGeneration+1 {
 		t.Fatalf("generation = %d, want %d", result.Generation, bundle.ForceGeneration+1)
-	}
-	if result.Notification != "not-configured" {
-		t.Fatalf("notification = %q, want not-configured", result.Notification)
-	}
-}
-
-func TestNotifyReconcileSendsNtfyPayload(t *testing.T) {
-	var received ntfyMessage
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if got := r.Header.Get("Authorization"); got != "Bearer secret" {
-			t.Errorf("authorization = %q", got)
-		}
-		if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
-			t.Errorf("decode ntfy payload: %v", err)
-		}
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	app := newApp(Config{
-		NtfyBaseURL:    server.URL,
-		NtfyTopic:      "fleet-alerts",
-		NtfyToken:      "secret",
-		AppBaseURL:     "https://fleet.example.com/console?source=ntfy",
-		RequestTimeout: time.Second,
-	})
-	bundle := BundleView{Namespace: "platform", Name: "base", GitRepo: "platform-configs", Commit: "abc123"}
-	if err := app.notifyReconcile(context.Background(), bundle, 12, "tester"); err != nil {
-		t.Fatalf("notify reconcile: %v", err)
-	}
-	if received.Topic != "fleet-alerts" || received.Title != "[Fleet] Bundle reconcile triggered" {
-		t.Fatalf("unexpected ntfy payload: %#v", received)
-	}
-	if received.SequenceID != "reconcile-platform-base-12" {
-		t.Fatalf("sequence ID = %q", received.SequenceID)
-	}
-	click, err := url.Parse(received.Click)
-	if err != nil {
-		t.Fatalf("parse ntfy click URL: %v", err)
-	}
-	if click.Path != "/console" || click.Query().Get("source") != "ntfy" || click.Query().Get("bundle") != "platform/base" {
-		t.Fatalf("unexpected ntfy click URL: %q", received.Click)
 	}
 }
 

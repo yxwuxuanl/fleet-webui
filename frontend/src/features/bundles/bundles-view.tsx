@@ -155,7 +155,7 @@ export default function BundlesView({
     const id = `${result.bundle.namespace}/${result.bundle.name}`;
     onToast(
       "Reconcile accepted",
-      `${id} moved to generation ${result.generation}. ntfy: ${result.notification}.`,
+      `${id} moved to generation ${result.generation}.`,
       "success",
     );
     if (browserAlerts && "Notification" in window)

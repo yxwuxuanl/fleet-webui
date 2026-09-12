@@ -139,7 +139,6 @@ func (a *App) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"mode":                      a.fleet.connectionMode,
 		"connectionError":           errorMessage(a.fleet.ready()),
-		"notificationConfigured":    a.config.NtfyBaseURL != "" && a.config.NtfyTopic != "",
 		"reconcileEnabled":          a.config.ReconcileEnabled,
 		"managedObjectsYAMLEnabled": a.config.ManagedObjectsEnabled,
 		"gitHistoryEnabled":         a.config.GitHistoryEnabled,
@@ -422,15 +421,5 @@ func (a *App) handleReconcile(w http.ResponseWriter, r *http.Request) {
 	}
 	bundle := bundleView(source)
 
-	notification := "not-configured"
-	if a.config.NtfyBaseURL != "" && a.config.NtfyTopic != "" {
-		if err := a.notifyReconcile(r.Context(), bundle, generation, "console user"); err != nil {
-			a.logger.Error("ntfy notification failed", "bundle", namespace+"/"+name, "error", err)
-			notification = "failed"
-		} else {
-			notification = "sent"
-		}
-	}
-
-	writeJSON(w, http.StatusAccepted, map[string]any{"bundle": bundle, "generation": generation, "notification": notification})
+	writeJSON(w, http.StatusAccepted, map[string]any{"bundle": bundle, "generation": generation})
 }

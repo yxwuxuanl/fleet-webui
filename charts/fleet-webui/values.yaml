@@ -75,15 +75,6 @@ server:
 reconcile:
   enabled: true
 
-ntfy:
-  enabled: false
-  baseURL: ""
-  topic: ""
-  existingSecret: ""
-  tokenKey: token
-
-appBaseURL: ""
-
 resources:
   requests:
     cpu: 50m

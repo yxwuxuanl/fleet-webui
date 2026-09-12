@@ -8,7 +8,7 @@ An independent web console for [Rancher Fleet](https://github.com/rancher/fleet)
 - Inspect Desired/Live YAML, diffs, events and container logs.
 - Reconcile Bundles, sync GitRepos, and pin or resume revisions.
 - View Git history, including private repositories.
-- Receive ntfy and browser notifications.
+- Receive browser notifications for manual reconciles.
 
 ## Screenshots
 

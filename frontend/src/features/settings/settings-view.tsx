@@ -3,14 +3,12 @@ import { Button } from "@/components/base/buttons/button";
 import { PageHeading } from "@/src/components/page-heading";
 
 export default function SettingsView({
-  notificationConfigured,
   reconcileEnabled,
   gitHistoryEnabled,
   gitRepoActionsEnabled,
   browserAlerts,
   onBrowserAlertsChange,
 }: {
-  notificationConfigured: boolean;
   reconcileEnabled: boolean;
   gitHistoryEnabled: boolean;
   gitRepoActionsEnabled: boolean;
@@ -38,13 +36,6 @@ export default function SettingsView({
       enabledText: "Enabled",
       disabledText: "Read only",
       body: "Allows sync now plus confirmed revision pinning and branch resume operations.",
-    },
-    {
-      title: "ntfy delivery",
-      enabled: notificationConfigured,
-      enabledText: "Configured",
-      disabledText: "Not configured",
-      body: "The backend can send the outcome of confirmed reconcile requests to a private ntfy topic.",
     },
     {
       title: "Browser alerts",

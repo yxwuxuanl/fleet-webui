@@ -1,13 +1,3 @@
 Fleet WebUI is available inside the cluster at:
 
   http://{{ include "fleet-webui.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
-
-{{- if not .Values.ntfy.enabled }}
-
-ntfy notifications are disabled. To enable them, create a Secret containing the token and set:
-
-  ntfy.enabled=true
-  ntfy.baseURL=https://ntfy.example.com
-  ntfy.topic=fleet-reconcile-your-topic
-  ntfy.existingSecret=your-secret
-{{- end }}
