@@ -1,9 +1,9 @@
-IMAGE_REPOSITORY ?= registry.cn-shenzhen.aliyuncs.com/lin2ur/fleet-webui
+IMAGE_REPOSITORY ?= ghcr.io/yxwuxuanl/fleet-webui
 IMAGE_TAG ?= $(shell git rev-parse --short=7 HEAD)-amd64
 IMAGE_PLATFORM ?= linux/amd64
 IMAGE = $(IMAGE_REPOSITORY):$(IMAGE_TAG)
 
-.PHONY: run build test frontend-build image image-push image-name
+.PHONY: run build test chart-test frontend-build image image-push image-name
 
 run: frontend-build
 	go run .
@@ -18,6 +18,13 @@ test: frontend-build
 frontend-build:
 	npm --prefix frontend ci
 	npm --prefix frontend run build
+
+frontend/dist/index.html:
+	$(MAKE) frontend-build
+
+chart-test: frontend/dist/index.html
+	helm lint charts/fleet-webui
+	go test -count=1 -run 'Test(HelmConfiguration|ReadOnlyManifest)$$' ./...
 
 image:
 	docker buildx build \

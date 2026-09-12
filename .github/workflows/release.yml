@@ -1,0 +1,76 @@
+name: Prepare release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version without v, matching the selected tag and Chart.yaml (e.g. 0.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require a version tag
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          test "$GITHUB_REF_TYPE" = tag
+          test "$GITHUB_REF_NAME" = "v$VERSION"
+  verify:
+    needs: validate
+    uses: ./.github/workflows/ci.yml
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+      packages: write
+    env:
+      VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: azure/setup-helm@bf6a7d304bc2fdb57e0331155b7ebf2c504acf0a # v4
+        with:
+          version: v4.3.0
+      - name: Validate release metadata
+        run: |
+          test "$(helm show chart charts/fleet-webui | awk '/^version:/ {print $2}')" = "$VERSION"
+          test "$(helm show chart charts/fleet-webui | awk '/^appVersion:/ {gsub(/"/, "", $2); print $2}')" = "$VERSION"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo 'A release for this tag already exists; inspect it before retrying.' >&2
+            exit 1
+          fi
+      - name: Build and smoke-test versioned image
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}:$VERSION"
+          docker build --label "org.opencontainers.image.revision=$GITHUB_SHA" --label "org.opencontainers.image.version=$VERSION" -t "$IMAGE" .
+          bash scripts/smoke-container.sh "$IMAGE"
+      - name: Package chart
+        run: |
+          mkdir -p release
+          helm package charts/fleet-webui --destination release
+          cp LICENSE CHANGELOG.md release/
+          (cd release && sha256sum fleet-webui-*.tgz LICENSE CHANGELOG.md > SHA256SUMS)
+      - name: Publish image to GHCR
+        run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push "ghcr.io/${GITHUB_REPOSITORY,,}:$VERSION"
+      - name: Create draft preview release
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/* --verify-tag --draft --prerelease --title "Fleet WebUI $GITHUB_REF_NAME" --generate-notes

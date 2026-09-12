@@ -3,10 +3,12 @@ name: fleet-webui
 description: A web console for Rancher Fleet Bundle and GitRepo status
 type: application
 version: 0.1.0
-appVersion: "6f05c01"
+appVersion: "0.1.0"
 keywords:
   - rancher
   - fleet
   - gitops
   - kubernetes
-home: https://fleet.rancher.io/
+home: https://github.com/yxwuxuanl/fleet-webui
+sources:
+  - https://github.com/yxwuxuanl/fleet-webui

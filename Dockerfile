@@ -13,7 +13,11 @@ COPY --from=frontend /src/frontend/dist ./frontend/dist
 RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /out/fleet-webui .
 
 FROM gcr.io/distroless/static-debian12:nonroot
+LABEL org.opencontainers.image.source="https://github.com/yxwuxuanl/fleet-webui" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.description="An independent web console for Rancher Fleet"
 COPY --from=build /out/fleet-webui /fleet-webui
+COPY LICENSE /LICENSE
 EXPOSE 8080
 USER nonroot:nonroot
 ENTRYPOINT ["/fleet-webui"]

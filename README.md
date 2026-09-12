@@ -1,6 +1,19 @@
 # Fleet WebUI
 
-A Go-based web console for Rancher Fleet. It lists Fleet status, can request a confirmed Bundle reconcile, and sends a fixed-topic ntfy notification after Fleet accepts that request.
+An independent web console for Rancher Fleet, built with Go and React. Inspect GitOps deployment health, diagnose managed Kubernetes resources, and perform confirmed sync and revision operations.
+
+This is a community project, not an official Rancher product. The first public release is being prepared; versioned installation examples require the corresponding image to have been published.
+
+## Features
+
+- Browse Bundles, GitRepos, Clusters and BundleDeployments.
+- Inspect Desired/Live YAML, diffs, events and workload container logs.
+- Trigger Bundle reconcile and GitRepo sync; pin a Git commit or resume branch tracking.
+- Load private Git history using server-side credentials.
+- Receive optional ntfy and browser notifications.
+- Deploy a single container with an embedded React frontend and a Helm chart.
+
+See [contributing](CONTRIBUTING.md), [security](SECURITY.md), [release instructions](docs/RELEASING.md) and the [changelog](CHANGELOG.md). Project-owned code is available under [MIT](LICENSE); [third-party components](THIRD_PARTY_NOTICES.md) retain their own licenses.
 
 ## Run locally
 
@@ -89,7 +102,7 @@ HTTP access logging is enabled by default. Each request emits a structured `http
 
 ## Browser system notifications
 
-The UI offers an opt-in **Enable browser alerts** control below the Git repository list. Once a user allows it, the browser shows a local system notification when that user’s manual reconcile request is accepted or cannot be requested. The opt-in is kept only in that browser, and no ntfy credentials are sent to it.
+The UI offers an opt-in **Enable alerts** control in Settings. Once a user allows it, the browser shows a local system notification when that user’s manual reconcile request is accepted. The opt-in is kept only in that browser, and no ntfy credentials are sent to it.
 
 Browser alerts require browser support, an explicit user permission, and HTTPS in deployed environments (localhost is suitable for development). They supplement rather than replace the server-side ntfy delivery; they do not persist after the browser has been closed.
 
@@ -97,10 +110,10 @@ Browser alerts require browser support, an explicit user permission, and HTTPS i
 
 ```sh
 make image
-docker run --rm -p 8080:8080 registry.cn-shenzhen.aliyuncs.com/lin2ur/fleet-webui:$(git rev-parse --short=7 HEAD)-amd64
+docker run --rm -p 127.0.0.1:8080:8080 -e RECONCILE_ENABLED=false -e GIT_REPO_ACTIONS_ENABLED=false "$(make image-name)"
 ```
 
-`make image` builds a local `linux/amd64` image. `make image-push` builds and publishes the same image. The default image name is `registry.cn-shenzhen.aliyuncs.com/lin2ur/fleet-webui:<short-commit>-amd64`, so the unqualified commit tag and `latest` are not changed. Print the resolved name with `make image-name`.
+`make image` builds a local `linux/amd64` image. `make image-push` builds and publishes the same image. The default image name is `ghcr.io/yxwuxuanl/fleet-webui:<short-commit>-amd64`, so the unqualified commit tag and `latest` are not changed. Print the resolved name with `make image-name`.
 
 Override any image setting when needed:
 
@@ -109,4 +122,4 @@ make image-push IMAGE_TAG=my-temporary-tag
 make image-push IMAGE_REPOSITORY=example.com/team/fleet-webui IMAGE_PLATFORM=linux/amd64
 ```
 
-For Kubernetes, publish the image, then update the image reference in `deploy/rbac.yaml` before applying it.
+The example starts without cluster credentials and will show a connection error until a Fleet connection is configured. For Kubernetes, publish the image, then update the image reference in `deploy/rbac.yaml` before applying it.

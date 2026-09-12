@@ -1,0 +1,12 @@
+title = "Fleet WebUI secret scanning"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Helm NOTES prose followed by the literal ntfy.enabled=true example; not a credential"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''(^|/)charts/fleet-webui/templates/NOTES\.txt$''']
+regexTarget = "match"
+regexes = ['''token and set:\s+ntfy\.enabled=true''']

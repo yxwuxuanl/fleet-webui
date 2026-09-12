@@ -1,9 +1,9 @@
 replicaCount: 1
 
 image:
-  repository: registry.cn-shenzhen.aliyuncs.com/lin2ur/fleet-webui
+  repository: ghcr.io/yxwuxuanl/fleet-webui
   pullPolicy: IfNotPresent
-  tag: "6f05c01"
+  tag: "0.1.0"
 
 imagePullSecrets: []
 nameOverride: ""

@@ -1,6 +1,6 @@
 # fleet-webui Helm chart
 
-Deploys Fleet WebUI using the automatically detected Pod ServiceAccount to access the Fleet CRDs. The default image is `registry.cn-shenzhen.aliyuncs.com/lin2ur/fleet-webui:6f05c01`.
+Deploys Fleet WebUI using the automatically detected Pod ServiceAccount to access the Fleet CRDs. The default image is `ghcr.io/yxwuxuanl/fleet-webui:0.1.0`.
 
 ## Install
 
@@ -12,18 +12,7 @@ helm upgrade --install fleet-webui ./charts/fleet-webui \
 
 The chart creates a ClusterRole and ClusterRoleBinding so the WebUI can list Fleet resources across namespaces. Manual reconcile is enabled by default and adds Bundle `patch` permission.
 
-If the Alibaba Cloud registry is private, create an image-pull Secret and set `imagePullSecrets`:
-
-```sh
-kubectl -n cattle-fleet-system create secret docker-registry aliyun-registry \
-  --docker-server=registry.cn-shenzhen.aliyuncs.com \
-  --docker-username='REPLACE_ME' \
-  --docker-password='REPLACE_ME'
-
-helm upgrade --install fleet-webui ./charts/fleet-webui \
-  --namespace cattle-fleet-system \
-  --set 'imagePullSecrets[0].name=aliyun-registry'
-```
+The first release is in preparation. Publish the image before installing, or override `image.repository` and `image.tag` with an image you have built and published. If the GHCR package is private, configure `imagePullSecrets` with your registry credentials.
 
 ## Manual reconcile
 
@@ -97,8 +86,8 @@ SSH Secrets must include `ssh-privatekey` and `known_hosts`; HTTPS Secrets may u
 
 | Value | Default | Description |
 | --- | --- | --- |
-| `image.repository` | `registry.cn-shenzhen.aliyuncs.com/lin2ur/fleet-webui` | Container image repository. |
-| `image.tag` | `6f05c01` | Container image tag. |
+| `image.repository` | `ghcr.io/yxwuxuanl/fleet-webui` | Container image repository. |
+| `image.tag` | `0.1.0` | Container image tag. |
 | `rbac.create` | `true` | Create the ClusterRole and ClusterRoleBinding. |
 | `fleet.pageSize` | `250` | Maximum Fleet resources requested per upstream page. |
 | `fleet.cacheTTLSeconds` | `10` | Shared in-process list cache lifetime. |
