@@ -47,7 +47,7 @@ spec:
       serviceAccountName: fleet-webui
       containers:
         - name: fleet-webui
-          image: ghcr.io/yxwuxuanl/fleet-webui:0.1.0-rc.1
+          image: ghcr.io/yxwuxuanl/fleet-webui:0.1.0
           imagePullPolicy: IfNotPresent
           env:
             - name: RECONCILE_ENABLED

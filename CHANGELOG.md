@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.0
+
+First stable release, retaining the Fleet console features introduced in 0.1.0-rc.1.
+
+- Organize the Go module, source and tests under `server/`, with the embedded React build in `server/dist/`.
+- Isolate Docker credentials when verifying anonymous Helm chart downloads.
+- Align the container image, Helm chart, frontend package and deployment examples on version 0.1.0.
+- Clarify development, installation and release documentation.
+
+Automated checks cover container startup, Helm installation on a temporary Kubernetes cluster and read-only settings. A production Rancher/Fleet compatibility matrix has not been verified.
+
 ## 0.1.0-rc.1
 
 - React console for Fleet Bundles, GitRepos, Clusters and BundleDeployments.

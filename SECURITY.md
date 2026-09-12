@@ -17,4 +17,4 @@ Fleet WebUI uses a server-side Kubernetes/Rancher identity shared by its visitor
 
 ## Version support
 
-The first public release is in preparation. Until a stable support policy is announced, security fixes will target the current development branch and the latest preview release. No response-time SLA is offered.
+Security fixes target the current development branch and the latest stable release. No response-time SLA is offered.
