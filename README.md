@@ -15,6 +15,18 @@ This is a community project, not an official Rancher product. The first public r
 
 See [contributing](CONTRIBUTING.md), [security](SECURITY.md), [release instructions](docs/RELEASING.md) and the [changelog](CHANGELOG.md). Project-owned code is available under [MIT](LICENSE); [third-party components](THIRD_PARTY_NOTICES.md) retain their own licenses.
 
+## Screenshots
+
+Captured from a running Fleet WebUI deployment on September 12, 2026. Resource names and health reflect that deployment at capture time.
+
+**Bundles overview** — deployment health, workspace filters, and per-Bundle readiness.
+
+![Fleet WebUI Bundles overview showing health totals, filters, and deployment status](docs/screenshots/bundles-overview.jpg)
+
+**Bundle details** — revision metadata, target readiness, and a deployment summary in the detail drawer.
+
+![Fleet WebUI Bundle detail drawer showing revision metadata and deployment readiness](docs/screenshots/bundle-details.jpg)
+
 ## Run locally
 
 Requires Go 1.27+, Node.js 22.12+ and npm. From a fresh clone:
