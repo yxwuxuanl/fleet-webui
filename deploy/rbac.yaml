@@ -14,7 +14,7 @@ rules:
     resourceNames: ["fleet-controller"]
     verbs: ["get"]
   - apiGroups: ["fleet.cattle.io"]
-    resources: ["bundles", "gitrepos", "clusters", "bundledeployments"]
+    resources: ["bundles", "gitrepos", "clusters", "clustergroups", "bundledeployments"]
     verbs: ["get", "list", "watch"]
   - apiGroups: [""]
     resources: ["secrets"]
@@ -51,7 +51,7 @@ spec:
       serviceAccountName: fleet-webui
       containers:
         - name: fleet-webui
-          image: ghcr.io/yxwuxuanl/fleet-webui:0.1.2
+          image: ghcr.io/yxwuxuanl/fleet-webui:0.2.0
           imagePullPolicy: IfNotPresent
           env:
             - name: RECONCILE_ENABLED

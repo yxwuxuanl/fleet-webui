@@ -29,12 +29,16 @@ func (a *App) routes() http.Handler {
 	mux.HandleFunc("GET /api/bundles", a.handleBundles)
 	mux.HandleFunc("GET /api/bundles/{namespace}/{name}", a.handleBundleDetail)
 	mux.HandleFunc("GET /api/bundles/{namespace}/{name}/managed-objects", a.handleManagedObjects)
+	mux.HandleFunc("GET /api/bundles/{namespace}/{name}/rollout", a.handleBundleRollout)
+	mux.HandleFunc("GET /api/bundledeployments/{namespace}/{name}/managed-objects", a.handleDeploymentObjects)
 	mux.HandleFunc("GET /api/gitrepos", a.handleGitRepos)
 	mux.HandleFunc("GET /api/gitrepos/{namespace}/{name}", a.handleGitRepoDetail)
 	mux.HandleFunc("GET /api/gitrepos/{namespace}/{name}/history", a.handleGitRepoHistory)
+	mux.HandleFunc("GET /api/gitrepos/{namespace}/{name}/rollout", a.handleRepositoryRollout)
 	mux.HandleFunc("POST /api/gitrepos/{namespace}/{name}/sync", a.handleGitRepoSync)
 	mux.HandleFunc("POST /api/gitrepos/{namespace}/{name}/revision", a.handleGitRepoRevision)
 	mux.HandleFunc("GET /api/clusters", a.handleClusters)
+	mux.HandleFunc("GET /api/clustergroups", a.handleClusterGroups)
 	mux.HandleFunc("GET /api/clusters/{namespace}/{name}", a.handleClusterDetail)
 	mux.HandleFunc("GET /api/bundledeployments", a.handleBundleDeployments)
 	mux.HandleFunc("GET /api/bundledeployments/{namespace}/{name}", a.handleBundleDeploymentDetail)
@@ -422,5 +426,5 @@ func (a *App) handleReconcile(w http.ResponseWriter, r *http.Request) {
 	}
 	bundle := bundleView(source)
 
-	writeJSON(w, http.StatusAccepted, map[string]any{"bundle": bundle, "generation": generation})
+	writeJSON(w, http.StatusAccepted, map[string]any{"bundle": bundle, "generation": generation, "sourceGeneration": source.Metadata.Generation, "uid": source.Metadata.UID})
 }

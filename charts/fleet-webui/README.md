@@ -1,6 +1,6 @@
 # fleet-webui Helm chart
 
-Deploys Fleet WebUI using the automatically detected Pod ServiceAccount to access the Fleet CRDs. The default image is `ghcr.io/yxwuxuanl/fleet-webui:0.1.2`.
+Deploys Fleet WebUI using the automatically detected Pod ServiceAccount to access the Fleet CRDs. The default image is `ghcr.io/yxwuxuanl/fleet-webui:0.2.0`.
 
 ## Install
 
@@ -82,3 +82,7 @@ SSH Secrets must include `ssh-privatekey` and `known_hosts`; HTTPS Secrets may u
 ## Version display
 
 The sidebar reads the Fleet controller image tag from the `fleet-controller` Deployment. RBAC includes `get` for this Deployment. Set `fleet.systemNamespace` when Fleet is installed outside `cattle-fleet-system`. Existing installations must apply the updated chart/RBAC for discovery; unavailable versions do not affect console health. WebUI displays its embedded build version.
+
+### Deployment matrix
+
+The chart grants read access to Fleet `clustergroups` for the matrix group filter. Upgrade the chart's RBAC with the application. Installations using custom RBAC must add `get`, `list`, and `watch` on `clustergroups` in `fleet.cattle.io`; other matrix filters continue to work if group access is unavailable. See the [operations guide](../../docs/OPERATIONS.md) for matrix state and sync observation behavior.

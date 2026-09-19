@@ -1,3 +1,4 @@
+import { SyncTrackingProvider } from "@/src/components/sync-tracker";
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import type { NotificationStatus } from "@/components/base/notification/notification";
 import { ErrorBanner } from "@/src/components/error-banner";
@@ -5,6 +6,7 @@ import { FleetShell, type ViewKey } from "@/src/components/fleet-shell";
 import type { ToastItem } from "@/src/components/toast-stack";
 import { useFleetData } from "@/src/hooks/use-fleet-data";
 
+const MatrixView = lazy(() => import("@/src/features/matrix/matrix-view"));
 const BundlesView = lazy(() => import("@/src/features/bundles/bundles-view"));
 const RepositoriesView = lazy(
   () => import("@/src/features/repositories/repositories-view"),
@@ -27,6 +29,7 @@ const VIEWS = new Set<ViewKey>([
   "repositories",
   "clusters",
   "deployments",
+  "matrix",
   "settings",
 ]);
 
@@ -124,7 +127,7 @@ export default function App() {
     const url = new URL(window.location.href);
     if (next === "bundles") url.searchParams.delete("view");
     else url.searchParams.set("view", next);
-    if (next !== "bundles") url.searchParams.delete("bundle");
+    for (const key of ["bundle", "repository", "deployment", "cluster"]) url.searchParams.delete(key);
     window.history.pushState({}, "", url);
   }, []);
 
@@ -173,65 +176,67 @@ export default function App() {
       attentionOnly={attentionOnly}
       onAttentionToggle={() => setAttentionOnly((value) => !value)}
     >
-      <ErrorBanner messages={baseErrors} />
-      <Suspense fallback={<ModuleLoading />}>
-        {view === "bundles" ? (
-          <BundlesView
-            bundles={bundles}
-            repositories={repositories}
-            lastLoadedAt={lastLoadedAt}
-            isRefreshing={isRefreshing}
-            refreshSeconds={refreshSeconds}
-            onRefreshSecondsChange={setRefreshSeconds}
-            onRefresh={refreshFleetData}
-            attentionOnly={attentionOnly}
-            browserAlerts={browserAlerts}
-            onToast={pushToast}
-          />
-        ) : null}
-        {view === "repositories" ? (
-          <RepositoriesView
-            repositories={repositories}
-            isRefreshing={isRefreshing}
-            refreshSeconds={refreshSeconds}
-            onRefreshSecondsChange={setRefreshSeconds}
-            onRefresh={() => refreshFleetData()}
-          />
-        ) : null}
-        {view === "clusters" ? (
-          <ClustersView
-            refreshSeconds={refreshSeconds}
-            onRefreshSecondsChange={setRefreshSeconds}
-            onToast={pushToast}
-          />
-        ) : null}
-        {view === "deployments" ? (
-          <DeploymentsView
-            refreshSeconds={refreshSeconds}
-            onRefreshSecondsChange={setRefreshSeconds}
-            onToast={pushToast}
-          />
-        ) : null}
-        {view === "settings" ? (
-          <SettingsView
-            reconcileEnabled={health.reconcileEnabled}
-            gitHistoryEnabled={Boolean(health.gitHistoryEnabled)}
-            gitRepoActionsEnabled={Boolean(health.gitRepoActionsEnabled)}
-            browserAlerts={browserAlerts}
-            onBrowserAlertsChange={() => void toggleBrowserAlerts()}
-          />
-        ) : null}
-      </Suspense>
-      {toasts.length ? (
-        <Suspense fallback={null}>
-          <ToastStack
-            items={toasts}
-            onDismiss={(id) =>
-              setToasts((current) => current.filter((item) => item.id !== id))
-            }
-          />
+      <SyncTrackingProvider browserAlerts={browserAlerts} onToast={pushToast}>
+        <ErrorBanner messages={baseErrors} />
+        <Suspense fallback={<ModuleLoading />}>
+          {view === "bundles" ? (
+            <BundlesView
+              bundles={bundles}
+              repositories={repositories}
+              lastLoadedAt={lastLoadedAt}
+              isRefreshing={isRefreshing}
+              refreshSeconds={refreshSeconds}
+              onRefreshSecondsChange={setRefreshSeconds}
+              onRefresh={refreshFleetData}
+              attentionOnly={attentionOnly}
+              onToast={pushToast}
+            />
+          ) : null}
+          {view === "repositories" ? (
+            <RepositoriesView
+              repositories={repositories}
+              isRefreshing={isRefreshing}
+              refreshSeconds={refreshSeconds}
+              onRefreshSecondsChange={setRefreshSeconds}
+              onRefresh={() => refreshFleetData()}
+            />
+          ) : null}
+          {view === "clusters" ? (
+            <ClustersView
+              refreshSeconds={refreshSeconds}
+              onRefreshSecondsChange={setRefreshSeconds}
+              onToast={pushToast}
+            />
+          ) : null}
+          {view === "deployments" ? (
+            <DeploymentsView
+              refreshSeconds={refreshSeconds}
+              onRefreshSecondsChange={setRefreshSeconds}
+              onToast={pushToast}
+            />
+          ) : null}
+          {view === "matrix" ? <MatrixView refreshSeconds={refreshSeconds} onRefreshSecondsChange={setRefreshSeconds} /> : null}
+          {view === "settings" ? (
+            <SettingsView
+              reconcileEnabled={health.reconcileEnabled}
+              gitHistoryEnabled={Boolean(health.gitHistoryEnabled)}
+              gitRepoActionsEnabled={Boolean(health.gitRepoActionsEnabled)}
+              browserAlerts={browserAlerts}
+              onBrowserAlertsChange={() => void toggleBrowserAlerts()}
+            />
+          ) : null}
         </Suspense>
-      ) : null}
+        {toasts.length ? (
+          <Suspense fallback={null}>
+            <ToastStack
+              items={toasts}
+              onDismiss={(id) =>
+                setToasts((current) => current.filter((item) => item.id !== id))
+              }
+            />
+          </Suspense>
+        ) : null}
+      </SyncTrackingProvider>
     </FleetShell>
   );
 }

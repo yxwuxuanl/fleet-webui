@@ -1,3 +1,6 @@
+import { useSyncTracking } from "@/src/components/sync-tracker";
+import { ResourceLink } from "@/src/components/resource-link";
+import { BundleTargets, RepositoryBundles } from "@/src/components/resource-relationships";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   RiGitCommitLine,
@@ -7,7 +10,6 @@ import {
 import { Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
 import { Button } from "@/components/base/buttons/button";
 import { CloseButton } from "@/components/base/buttons/close-button";
-import { ManagedObjectsPanel } from "@/src/components/managed-objects";
 import { StatusChip } from "@/src/components/status-chip";
 import { api } from "@/src/lib/api";
 import { bundleID, dateLabel, shortCommit } from "@/src/lib/format";
@@ -19,6 +21,7 @@ import type {
   GitHistory,
   GitRepoView,
   ReconcileResult,
+  RepositorySyncResult,
 } from "@/src/types";
 
 function Definition({
@@ -153,15 +156,18 @@ export function BundleDetailDrawer({
   const [error, setError] = useState("");
   useEffect(() => {
     if (!open || !bundle) return;
+    const controller = new AbortController();
     setDetail(null);
     setError("");
     void api<BundleDetail>(
       `/api/bundles/${encodeURIComponent(bundle.namespace)}/${encodeURIComponent(bundle.name)}`,
+      { signal: controller.signal },
     )
       .then(setDetail)
       .catch((reason) =>
-        setError(reason instanceof Error ? reason.message : String(reason)),
+        !controller.signal.aborted && setError(reason instanceof Error ? reason.message : String(reason)),
       );
+    return () => controller.abort();
   }, [bundle, open]);
   if (!bundle) return null;
   const source = detail ?? bundle;
@@ -200,7 +206,7 @@ export function BundleDetailDrawer({
           <section>
             <h3 className="text-body-medium text-text-primary">Overview</h3>
             <dl className="mt-3 grid grid-cols-2 gap-x-5 gap-y-4">
-              <Definition label="Git repository" value={source.gitRepo} />
+              <div><dt className="text-caption-1-medium text-text-tertiary">Git repository</dt><dd className="mt-1">{source.gitRepo ? <ResourceLink kind="repository" namespace={source.namespace} name={source.gitRepo} /> : "Not reported"}</dd></div>
               <Definition label="Targets" value={source.targets} />
               <Definition
                 label="Commit"
@@ -250,7 +256,7 @@ export function BundleDetailDrawer({
               </div>
             </section>
           ) : null}
-          <ManagedObjectsPanel bundle={bundle} active={open} />
+          {detail ? <BundleTargets namespace={bundle.namespace} name={bundle.name} /> : null}
           <section>
             <h3 className="mb-3 text-body-medium text-text-primary">
               Conditions
@@ -290,6 +296,7 @@ function RepositoryDetailContent({
   open,
   onOpenChange,
 }: RepositoryDrawerProps) {
+  const trackSync = useSyncTracking();
   const [detail, setDetail] = useState<GitRepoDetail | null>(null);
   const [error, setError] = useState("");
   const [history, setHistory] = useState<GitHistory | null>(null);
@@ -330,7 +337,8 @@ function RepositoryDetailContent({
     setBusy("sync");
     setError("");
     try {
-      await api(`/api/gitrepos/${encodeURIComponent(repo.namespace)}/${encodeURIComponent(repo.name)}/sync`, { method: "POST", signal });
+      const result = await api<RepositorySyncResult>(`/api/gitrepos/${encodeURIComponent(repo.namespace)}/${encodeURIComponent(repo.name)}/sync`, { method: "POST", signal });
+      trackSync(result);
       if (signal.aborted) return;
       await loadRepository();
     } catch (reason) {
@@ -415,6 +423,7 @@ function RepositoryDetailContent({
               />
             </dl>
           </section>
+          <RepositoryBundles namespace={repo.namespace} name={repo.name} />
           {detail?.paths?.length ? (
             <section>
               <h3 className="text-body-medium text-text-primary">Paths</h3>
@@ -544,6 +553,7 @@ export function ReconcileDialog({
   onOpenChange: (open: boolean) => void;
   onCompleted: (result: ReconcileResult) => void;
 }) {
+  const trackSync = useSyncTracking();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -558,6 +568,7 @@ export function ReconcileDialog({
         `/api/bundles/${encodeURIComponent(bundle.namespace)}/${encodeURIComponent(bundle.name)}/reconcile`,
         { method: "POST" },
       );
+      trackSync(result);
       onCompleted(result);
       onOpenChange(false);
     } catch (reason) {

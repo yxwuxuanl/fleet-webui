@@ -11,7 +11,7 @@ rules:
     resourceNames: ["fleet-controller"]
     verbs: ["get"]
   - apiGroups: ["fleet.cattle.io"]
-    resources: ["bundles", "gitrepos", "clusters", "bundledeployments"]
+    resources: ["bundles", "gitrepos", "clusters", "clustergroups", "bundledeployments"]
     verbs: ["get", "list", "watch"]
   {{- if .Values.managedObjects.enabled }}
   # Live YAML is restricted by the API to objects indexed by a BundleDeployment.

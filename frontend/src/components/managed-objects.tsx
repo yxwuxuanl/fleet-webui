@@ -243,11 +243,15 @@ function ObjectYAMLDialog({
 
 export function ManagedObjectsPanel({
   bundle,
+  deployment,
   active,
 }: {
-  bundle: BundleView;
+  bundle?: Pick<BundleView, "name" | "namespace">;
+  deployment?: { name: string; namespace: string };
   active: boolean;
 }) {
+  const target = deployment ?? bundle;
+  const path = target ? `/api/${deployment ? "bundledeployments" : "bundles"}/${encodeURIComponent(target.namespace)}/${encodeURIComponent(target.name)}/managed-objects` : "";
   const [objects, setObjects] = useState<ManagedObjectView[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -257,13 +261,13 @@ export function ManagedObjectsPanel({
   const [selected, setSelected] = useState<ManagedObjectView | null>(null);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active || !path) return;
     const controller = new AbortController();
     setObjects([]);
     setError("");
     setLoading(true);
     void api<{ items: ManagedObjectView[]; yamlEnabled: boolean }>(
-      `/api/bundles/${encodeURIComponent(bundle.namespace)}/${encodeURIComponent(bundle.name)}/managed-objects`,
+      path,
       { signal: controller.signal },
     )
       .then((result) => {
@@ -278,7 +282,7 @@ export function ManagedObjectsPanel({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [active, bundle.name, bundle.namespace]);
+  }, [active, path]);
 
   useEffect(() => {
     if (!active) {
@@ -346,7 +350,7 @@ export function ManagedObjectsPanel({
         <div className="mt-3 rounded-xl border border-border-primary p-4 text-center text-body-regular text-text-tertiary">
           {objects.length
             ? "No managed objects match this search."
-            : "Fleet has not reported managed objects for this Bundle yet."}
+            : "Fleet has not reported managed objects for this deployment yet."}
         </div>
       ) : (
         <div className="mt-3 max-h-80 divide-y divide-border-primary overflow-y-auto rounded-xl border border-border-primary">
@@ -357,7 +361,7 @@ export function ManagedObjectsPanel({
               aria-label={`View YAML for ${object.kind} ${objectLabel(object)}`}
               disabled={!yamlEnabled}
               onClick={() => setSelected(object)}
-              className="fleet-list-row flex w-full items-center gap-3 p-3 text-left outline-none hover:bg-background-secondary-hover focus-visible:bg-background-secondary-hover disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
+              className="flex w-full items-center gap-3 p-3 text-left outline-none hover:bg-background-secondary-hover focus-visible:bg-background-secondary-hover disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
             >
               <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-background-tertiary-default text-text-secondary">
                 <RiCodeBoxLine className="size-5" />

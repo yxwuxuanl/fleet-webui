@@ -41,6 +41,8 @@ export interface BundleSummary {
 }
 
 export interface BundleDetail extends BundleView {
+  generation: number;
+  uid: string;
   createdAt?: string;
   resourceVersion?: string;
   observedGeneration: number;
@@ -72,6 +74,9 @@ export interface GitRepoResourceCounts {
 }
 
 export interface GitRepoDetail extends GitRepoView {
+  generation: number;
+  forceGeneration: number;
+  uid: string;
   revision?: string;
   paths?: string[];
   pollingInterval?: string;
@@ -91,11 +96,14 @@ export interface GitRepoDetail extends GitRepoView {
 }
 
 export interface ReconcileResult {
+  sourceGeneration: number;
+  uid: string;
   bundle: BundleView;
   generation: number;
 }
 
 export interface ClusterView {
+  labels?: Record<string, string>;
   name: string;
   namespace: string;
   clusterNamespace?: string;
@@ -117,6 +125,11 @@ export interface ClusterDetail extends ClusterView {
 }
 
 export interface BundleDeploymentView {
+  deploymentID?: string;
+  stagedDeploymentID?: string;
+  appliedDeploymentID?: string;
+  forceGeneration: number;
+  syncGeneration?: number;
   name: string;
   namespace: string;
   cluster: string;
@@ -210,4 +223,27 @@ export interface LoadErrors {
   health: string;
   bundles: string;
   repositories: string;
+}
+
+export interface BundleRollout {
+  bundle: BundleDetail;
+  items: BundleDeploymentView[];
+}
+
+export interface RepositorySyncResult {
+  repository: GitRepoView;
+  generation: number;
+  sourceGeneration: number;
+  uid: string;
+}
+export interface RepositoryRollout {
+  repository: GitRepoDetail;
+  bundles: BundleDetail[];
+  items: BundleDeploymentView[];
+}
+
+export interface ClusterGroupView {
+  name: string;
+  namespace: string;
+  clusterNamespaces: string[];
 }

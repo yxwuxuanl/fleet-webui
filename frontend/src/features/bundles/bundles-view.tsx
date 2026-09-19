@@ -30,7 +30,6 @@ export interface BundlesViewProps {
   onRefreshSecondsChange: (seconds: number) => void;
   onRefresh: (showToast?: boolean) => Promise<void>;
   attentionOnly: boolean;
-  browserAlerts: boolean;
   onToast: (title: string, description?: string, status?: ToastStatus) => void;
 }
 
@@ -43,7 +42,6 @@ export default function BundlesView({
   onRefreshSecondsChange,
   onRefresh,
   attentionOnly,
-  browserAlerts,
   onToast,
 }: BundlesViewProps) {
   const [search, setSearch] = useState("");
@@ -156,13 +154,8 @@ export default function BundlesView({
     onToast(
       "Reconcile accepted",
       `${id} moved to generation ${result.generation}.`,
-      "success",
+      "information",
     );
-    if (browserAlerts && "Notification" in window)
-      new window.Notification("Fleet reconcile accepted", {
-        body: `${id} · generation ${result.generation}`,
-        tag: `fleet-${id}`,
-      });
     void onRefresh(false);
   }
 

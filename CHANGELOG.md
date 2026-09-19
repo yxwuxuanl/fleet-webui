@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0
+
+- Add a Bundle × Cluster deployment matrix with workspace, ClusterGroup, cluster-label and attention filters, plus separate row/column pagination.
+- Show assigned, staged and applied Fleet deployment IDs without treating repository commits as proof of deployment on every cluster.
+- Connect GitRepo, Bundle, BundleDeployment, cluster, managed-object and Pod diagnostics through shareable resource links and an expandable deployment path.
+- Track manual Bundle reconciles and GitRepo Sync now requests across page navigation and same-tab reloads, checking source observation, sync generations, applied deployment IDs and workload readiness.
+- Report successful, failed, partial, timed-out and superseded observations, with optional browser notifications for final outcomes rather than request acceptance.
+- Add Settings setup guides for server capabilities and browser alerts.
+- Fix nested resource rows shifting while scrolling into view and cancel stale Bundle detail reads.
+
+Upgrade note: apply the updated Helm chart or RBAC manifest to grant read access to Fleet `clustergroups`. Other matrix filters remain available without that permission. Sync tracking runs while the console is open, observes each request for up to 15 minutes, and does not provide server-side history or background alerts. See [Operations](docs/OPERATIONS.md).
+
 ## 0.1.2
 
 - Show Fleet controller and Fleet WebUI versions in the sidebar, with an unavailable state when controller discovery fails.

@@ -1,3 +1,4 @@
+import { useSelectedResource } from "@/src/hooks/use-selected-resource";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import {
   RiAlertLine,
@@ -164,7 +165,7 @@ export default function ClustersView({
   const [status, setStatus] = useState("all");
   const [workspace, setWorkspace] = useState("all");
   const [page, setPage] = useState(1);
-  const [selected, setSelected] = useState<ClusterView | null>(null);
+  const [selected, setSelected] = useSelectedResource("cluster", items);
   const workspaces = useMemo(
     () => Array.from(new Set(items.map((item) => item.namespace))).sort(),
     [items],

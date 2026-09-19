@@ -303,7 +303,7 @@ func (a *App) handleGitRepoSync(w http.ResponseWriter, r *http.Request) {
 		writeError(w, status, err)
 		return
 	}
-	writeJSON(w, http.StatusAccepted, map[string]any{"repository": gitRepoView(repo), "generation": generation})
+	writeJSON(w, http.StatusAccepted, map[string]any{"repository": gitRepoView(repo), "generation": generation, "sourceGeneration": repo.Metadata.Generation, "uid": repo.Metadata.UID})
 }
 
 func (a *App) handleGitRepoRevision(w http.ResponseWriter, r *http.Request) {

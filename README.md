@@ -9,7 +9,11 @@ An independent web console for [Rancher Fleet](https://github.com/rancher/fleet)
 - Inspect Desired/Live YAML, diffs, events and container logs.
 - Reconcile Bundles, sync GitRepos, and pin or resume revisions.
 - View Git history, including private repositories.
-- Receive browser notifications for manual reconciles.
+- Compare Bundle × Cluster deployments in a matrix, filtered by workspace, ClusterGroup and cluster labels.
+- Follow repository → Bundle → cluster deployment → resource → Pod diagnostics.
+- Track manual Bundle reconciles and repository syncs through to their observed outcomes, with optional browser notifications.
+
+See the [operations guide](docs/OPERATIONS.md) for deployment state, sync tracking and session limits.
 
 ## Screenshots
 

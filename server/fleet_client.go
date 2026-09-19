@@ -29,6 +29,7 @@ type FleetClient struct {
 	bundles        resourceCache[Bundle]
 	gitRepos       resourceCache[GitRepo]
 	clusters       resourceCache[Cluster]
+	clusterGroups  resourceCache[ClusterGroup]
 	bundleDeploys  resourceCache[BundleDeployment]
 	version        resourceCache[string]
 }
@@ -319,4 +320,10 @@ func (c *FleetClient) reconcileBundle(ctx context.Context, namespace, name strin
 		}
 	}
 	return Bundle{}, 0, errors.New("bundle changed concurrently; please try reconcile again")
+}
+
+func (c *FleetClient) listClusterGroups(ctx context.Context) ([]ClusterGroup, error) {
+	return c.clusterGroups.load(ctx, c.config.FleetCacheTTL, func(ctx context.Context) ([]ClusterGroup, error) {
+		return listResources[ClusterGroup](ctx, c, "clustergroups")
+	})
 }

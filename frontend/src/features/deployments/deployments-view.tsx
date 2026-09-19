@@ -1,3 +1,6 @@
+import { ManagedObjectsPanel } from "@/src/components/managed-objects";
+import { ResourceLink } from "@/src/components/resource-link";
+import { useSelectedResource } from "@/src/hooks/use-selected-resource";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import {
   RiAlertLine,
@@ -55,15 +58,18 @@ function DeploymentDrawer({
   const [error, setError] = useState("");
   useEffect(() => {
     if (!deployment) return;
+    const controller = new AbortController();
     setDetail(null);
     setError("");
     void api<BundleDeploymentDetail>(
       `/api/bundledeployments/${encodeURIComponent(deployment.namespace)}/${encodeURIComponent(deployment.name)}`,
+      { signal: controller.signal },
     )
       .then(setDetail)
       .catch((reason) =>
-        setError(reason instanceof Error ? reason.message : String(reason)),
+        !controller.signal.aborted && setError(reason instanceof Error ? reason.message : String(reason)),
       );
+    return () => controller.abort();
   }, [deployment]);
   if (!deployment) return null;
   const source = detail ?? deployment;
@@ -90,15 +96,8 @@ function DeploymentDrawer({
         <section>
           <h3 className="text-body-medium text-text-primary">Deployment</h3>
           <dl className="mt-3 grid grid-cols-2 gap-x-5 gap-y-4">
-            <Definition
-              label="Bundle"
-              value={
-                source.bundleNamespace
-                  ? `${source.bundleNamespace}/${source.bundleName}`
-                  : source.bundleName
-              }
-            />
-            <Definition label="Cluster" value={source.cluster} />
+            <div><dt className="text-caption-1-medium text-text-tertiary">Bundle</dt><dd className="mt-1">{source.bundleNamespace ? <ResourceLink kind="bundle" namespace={source.bundleNamespace} name={source.bundleName} /> : source.bundleName}</dd></div>
+            <div><dt className="text-caption-1-medium text-text-tertiary">Cluster</dt><dd className="mt-1">{source.cluster.includes("/") ? <ResourceLink kind="cluster" namespace={source.cluster.split("/")[0]} name={source.cluster.split("/")[1]} /> : source.cluster}</dd></div>
             <Definition label="Helm release" value={source.release} mono />
             <Definition
               label="Target namespace"
@@ -172,6 +171,7 @@ function DeploymentDrawer({
             </dl>
           </section>
         ) : null}
+        {detail ? <ManagedObjectsPanel deployment={deployment} active /> : null}
         <section>
           <h3 className="mb-3 text-body-medium text-text-primary">
             Conditions
@@ -214,7 +214,7 @@ export default function DeploymentsView({
   const [activitySort, setActivitySort] =
     useState<ActivitySortDirection>(null);
   const [page, setPage] = useState(1);
-  const [selected, setSelected] = useState<BundleDeploymentView | null>(null);
+  const [selected, setSelected] = useSelectedResource("deployment", items);
   const clusters = useMemo(
     () => Array.from(new Set(items.map((item) => item.cluster))).sort(),
     [items],

@@ -28,7 +28,7 @@ The sidebar shows the WebUI version embedded from `frontend/package.json` at bui
 
 Version discovery requires `get` on the `apps` Deployment named `fleet-controller`. The supplied RBAC grants this read; existing installations must update their RBAC to enable the Fleet version display.
 
-The Fleet identity needs `get`, `list`, `watch` on `bundles`, `gitrepos`, `clusters` and `bundledeployments` in the `fleet.cattle.io` API group. Lists currently query across all namespaces; namespace-only RoleBindings are insufficient.
+The Fleet identity needs `get`, `list`, `watch` on `bundles`, `gitrepos`, `clusters`, `clustergroups` and `bundledeployments` in the `fleet.cattle.io` API group. Existing installations need the added `clustergroups` read permission for matrix group filtering. Other matrix filters remain available without it. Lists currently query across all namespaces; namespace-only RoleBindings are insufficient.
 
 Bundle reconcile requires Bundle `patch` permission; GitRepo actions require GitRepo `patch` permission. Private Git history and downstream kubeconfigs also need access to their credential Secrets. See the [Helm chart](../charts/fleet-webui/README.md) for diagnostics permissions and deployment options.
 

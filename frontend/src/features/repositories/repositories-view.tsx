@@ -1,3 +1,4 @@
+import { useSelectedResource } from "@/src/hooks/use-selected-resource";
 import { useMemo, useState } from "react";
 import { PageHeading } from "@/src/components/page-heading";
 import { RefreshControl } from "@/src/components/refresh-control";
@@ -20,7 +21,7 @@ export default function RepositoriesView({
 }) {
   const [search, setSearch] = useState("");
   const [workspace, setWorkspace] = useState("all");
-  const [selected, setSelected] = useState<GitRepoView | null>(null);
+  const [selected, setSelected] = useSelectedResource("repository", repositories);
   const workspaces = useMemo(
     () =>
       Array.from(new Set(repositories.map((item) => item.namespace))).sort(),

@@ -20,6 +20,7 @@ export type ViewKey =
   | "repositories"
   | "clusters"
   | "deployments"
+  | "matrix"
   | "settings";
 
 function FleetMark() {
@@ -47,6 +48,7 @@ const nav: Array<{
   icon: ComponentType<{ className?: string }>;
 }> = [
   { key: "bundles", label: "Bundles", icon: RiBox3Line },
+  { key: "matrix", label: "Deployment matrix", icon: RiServerLine },
   { key: "deployments", label: "BundleDeployments", icon: RiGitBranchLine },
   { key: "repositories", label: "Git repositories", icon: RiGitRepositoryLine },
   { key: "clusters", label: "Clusters", icon: RiServerLine },
