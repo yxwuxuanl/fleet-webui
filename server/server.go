@@ -25,6 +25,7 @@ func newApp(config Config) *App {
 func (a *App) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", a.handleHealth)
+	mux.HandleFunc("GET /api/fleet-version", a.handleFleetVersion)
 	mux.HandleFunc("GET /api/bundles", a.handleBundles)
 	mux.HandleFunc("GET /api/bundles/{namespace}/{name}", a.handleBundleDetail)
 	mux.HandleFunc("GET /api/bundles/{namespace}/{name}/managed-objects", a.handleManagedObjects)

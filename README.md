@@ -5,6 +5,7 @@ An independent web console for [Rancher Fleet](https://github.com/rancher/fleet)
 ## Features
 
 - Browse Bundles, GitRepos, Clusters and BundleDeployments.
+- View Fleet controller and WebUI versions in the sidebar.
 - Inspect Desired/Live YAML, diffs, events and container logs.
 - Reconcile Bundles, sync GitRepos, and pin or resume revisions.
 - View Git history, including private repositories.

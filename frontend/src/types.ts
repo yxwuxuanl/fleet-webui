@@ -34,6 +34,7 @@ export interface BundleSummary {
   notReady: number;
   waitApplied: number;
   errApplied: number;
+  waitingForDependency: number;
   outOfSync: number;
   modified: number;
   pending: number;

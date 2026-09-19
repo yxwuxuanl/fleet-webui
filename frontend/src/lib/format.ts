@@ -47,6 +47,7 @@ export function statusKind(value?: string): StatusKind {
     [
       "reconciling",
       "waitapplied",
+      "waitingfordependency",
       "pending",
       "processing",
       "inprogress",

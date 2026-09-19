@@ -48,6 +48,8 @@ spec:
               value: {{ .Values.fleet.requestTimeoutSeconds | quote }}
             - name: FLEET_PAGE_SIZE
               value: {{ .Values.fleet.pageSize | quote }}
+            - name: FLEET_SYSTEM_NAMESPACE
+              value: {{ .Values.fleet.systemNamespace | quote }}
             - name: FLEET_CACHE_TTL_SECONDS
               value: {{ .Values.fleet.cacheTTLSeconds | quote }}
             - name: MANAGED_OBJECTS_YAML_ENABLED

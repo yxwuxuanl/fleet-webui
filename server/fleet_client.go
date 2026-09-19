@@ -30,6 +30,7 @@ type FleetClient struct {
 	gitRepos       resourceCache[GitRepo]
 	clusters       resourceCache[Cluster]
 	bundleDeploys  resourceCache[BundleDeployment]
+	version        resourceCache[string]
 }
 
 type resourceCache[T any] struct {

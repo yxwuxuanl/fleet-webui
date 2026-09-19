@@ -24,6 +24,10 @@ Managed-object YAML, diagnostics, logs and Git credential Secrets require Kubern
 
 ## Permissions
 
+The sidebar shows the WebUI version embedded from `frontend/package.json` at build time and the Fleet controller image tag. Fleet version discovery reads the `fleet-controller` Deployment in `cattle-fleet-system`; override the namespace with `FLEET_SYSTEM_NAMESPACE` (Helm: `fleet.systemNamespace`). It supports Kubernetes and Steve API connections, refreshes once a minute, and shows `Unavailable` when the deployment cannot be read or its image has no tag. The displayed tag describes the configured controller image; it does not certify that a rollout has completed. Health probes do not depend on version discovery.
+
+Version discovery requires `get` on the `apps` Deployment named `fleet-controller`. The supplied RBAC grants this read; existing installations must update their RBAC to enable the Fleet version display.
+
 The Fleet identity needs `get`, `list`, `watch` on `bundles`, `gitrepos`, `clusters` and `bundledeployments` in the `fleet.cattle.io` API group. Lists currently query across all namespaces; namespace-only RoleBindings are insufficient.
 
 Bundle reconcile requires Bundle `patch` permission; GitRepo actions require GitRepo `patch` permission. Private Git history and downstream kubeconfigs also need access to their credential Secrets. See the [Helm chart](../charts/fleet-webui/README.md) for diagnostics permissions and deployment options.

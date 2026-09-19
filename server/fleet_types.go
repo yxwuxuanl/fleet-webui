@@ -34,14 +34,15 @@ type Bundle struct {
 			ReadyClusters string `json:"readyClusters"`
 		} `json:"display"`
 		Summary struct {
-			Ready        int `json:"ready"`
-			DesiredReady int `json:"desiredReady"`
-			NotReady     int `json:"notReady"`
-			WaitApplied  int `json:"waitApplied"`
-			ErrApplied   int `json:"errApplied"`
-			OutOfSync    int `json:"outOfSync"`
-			Modified     int `json:"modified"`
-			Pending      int `json:"pending"`
+			Ready                int `json:"ready"`
+			DesiredReady         int `json:"desiredReady"`
+			NotReady             int `json:"notReady"`
+			WaitApplied          int `json:"waitApplied"`
+			ErrApplied           int `json:"errApplied"`
+			WaitingForDependency int `json:"waitingForDependency"`
+			OutOfSync            int `json:"outOfSync"`
+			Modified             int `json:"modified"`
+			Pending              int `json:"pending"`
 		} `json:"summary"`
 		Conditions         []Condition `json:"conditions"`
 		ObservedGeneration int64       `json:"observedGeneration"`
@@ -164,14 +165,15 @@ type BundleView struct {
 }
 
 type BundleSummaryView struct {
-	Ready        int `json:"ready"`
-	DesiredReady int `json:"desiredReady"`
-	NotReady     int `json:"notReady"`
-	WaitApplied  int `json:"waitApplied"`
-	ErrApplied   int `json:"errApplied"`
-	OutOfSync    int `json:"outOfSync"`
-	Modified     int `json:"modified"`
-	Pending      int `json:"pending"`
+	Ready                int `json:"ready"`
+	DesiredReady         int `json:"desiredReady"`
+	NotReady             int `json:"notReady"`
+	WaitApplied          int `json:"waitApplied"`
+	ErrApplied           int `json:"errApplied"`
+	WaitingForDependency int `json:"waitingForDependency"`
+	OutOfSync            int `json:"outOfSync"`
+	Modified             int `json:"modified"`
+	Pending              int `json:"pending"`
 }
 
 type BundleConditionView struct {
@@ -361,7 +363,7 @@ func bundleView(bundle Bundle) BundleView {
 		health = "Error"
 	case "outofsync", "modified":
 		health = "Out of sync"
-	case "pending", "waitapplied":
+	case "pending", "waitapplied", "waitingfordependency":
 		health = "Reconciling"
 	}
 	activity, message := latestCondition(bundle.Status.Conditions)
@@ -399,6 +401,7 @@ func bundleDetailView(bundle Bundle) BundleDetailView {
 			NotReady: bundle.Status.Summary.NotReady, WaitApplied: bundle.Status.Summary.WaitApplied,
 			ErrApplied: bundle.Status.Summary.ErrApplied, OutOfSync: bundle.Status.Summary.OutOfSync,
 			Modified: bundle.Status.Summary.Modified, Pending: bundle.Status.Summary.Pending,
+			WaitingForDependency: bundle.Status.Summary.WaitingForDependency,
 		},
 		Conditions: conditions,
 	}
@@ -426,6 +429,8 @@ func bundleState(bundle Bundle) string {
 	switch {
 	case summary.ErrApplied > 0:
 		return "ErrApplied"
+	case summary.WaitingForDependency > 0:
+		return "WaitingForDependency"
 	case summary.WaitApplied > 0:
 		return "WaitApplied"
 	case summary.Modified > 0:

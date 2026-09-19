@@ -12,6 +12,7 @@ build: frontend-build
 	go -C server build -trimpath -o ../fleet-webui .
 
 test: frontend-build
+	npm --prefix frontend test
 	go -C server test -race ./...
 	go -C server vet ./...
 

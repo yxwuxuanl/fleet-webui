@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2
+
+- Show Fleet controller and Fleet WebUI versions in the sidebar, with an unavailable state when controller discovery fails.
+
+- Support Fleet v0.16.2's `WaitingForDependency` state in health indicators, progress filters and Bundle deployment summaries. Older Fleet responses default the new count to zero.
+
+Upgrade note: apply the updated Helm chart or RBAC manifest to grant `get` on the `fleet-controller` Deployment. Without that permission, Fleet version displays `Unavailable`; the console remains usable. For a custom Fleet namespace, set `FLEET_SYSTEM_NAMESPACE` or Helm `fleet.systemNamespace`.
+
 ## 0.1.1
 
 - Remove ntfy delivery, its environment variables, Helm configuration and setup instructions.

@@ -15,6 +15,7 @@ type Config struct {
 	FleetSkipTLS              bool
 	FleetPageSize             int
 	FleetCacheTTL             time.Duration
+	FleetSystemNamespace      string
 	KubeconfigPath            string
 	KubeContext               string
 	ManagedObjectsEnabled     bool
@@ -43,6 +44,7 @@ func loadConfig() Config {
 		FleetSkipTLS:              envBool("FLEET_INSECURE_SKIP_TLS_VERIFY", false),
 		FleetPageSize:             envInt("FLEET_PAGE_SIZE", 250),
 		FleetCacheTTL:             envSeconds("FLEET_CACHE_TTL_SECONDS", 10),
+		FleetSystemNamespace:      env("FLEET_SYSTEM_NAMESPACE", "cattle-fleet-system"),
 		KubeconfigPath:            strings.TrimSpace(os.Getenv("FLEET_KUBECONFIG")),
 		KubeContext:               strings.TrimSpace(os.Getenv("FLEET_KUBECONTEXT")),
 		ManagedObjectsEnabled:     envBool("MANAGED_OBJECTS_YAML_ENABLED", true),

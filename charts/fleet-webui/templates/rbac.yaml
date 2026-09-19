@@ -6,6 +6,10 @@ metadata:
   labels:
     {{- include "fleet-webui.labels" . | nindent 4 }}
 rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["fleet-controller"]
+    verbs: ["get"]
   - apiGroups: ["fleet.cattle.io"]
     resources: ["bundles", "gitrepos", "clusters", "bundledeployments"]
     verbs: ["get", "list", "watch"]

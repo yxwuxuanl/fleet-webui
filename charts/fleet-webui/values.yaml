@@ -51,6 +51,7 @@ ingress:
   tls: []
 
 fleet:
+  systemNamespace: cattle-fleet-system
   requestTimeoutSeconds: 12
   pageSize: 250
   cacheTTLSeconds: 10

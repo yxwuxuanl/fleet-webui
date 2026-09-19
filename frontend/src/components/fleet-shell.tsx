@@ -11,6 +11,7 @@ import {
 } from "@remixicon/react";
 import { Button } from "@/components/base/buttons/button";
 import { connectionLabel } from "@/src/lib/format";
+import { useFleetVersion } from "@/src/hooks/use-fleet-version";
 import type { HealthStatus } from "@/src/types";
 import { cx } from "@/utils/cx";
 
@@ -55,10 +56,12 @@ const nav: Array<{
 function Sidebar({
   view,
   onViewChange,
+  fleetVersion,
   mobile = false,
 }: {
   view: ViewKey;
   onViewChange: (view: ViewKey) => void;
+  fleetVersion: string | null | undefined;
   mobile?: boolean;
 }) {
   return (
@@ -109,9 +112,18 @@ function Sidebar({
           </div>
         </div>
       </nav>
-      <div className="border-t border-border-primary p-4 text-caption-1-regular text-text-tertiary">
-        Fleet WebUI · internal
-      </div>
+      <dl aria-label="Component versions" className="space-y-2 border-t border-border-primary p-4 text-caption-1-regular text-text-tertiary">
+        <div className="flex items-center justify-between gap-3">
+          <dt>Fleet</dt>
+          <dd className="min-w-0 truncate font-mono text-text-secondary" title={fleetVersion || "Fleet controller version unavailable"}>
+            {fleetVersion === undefined ? "Loading…" : fleetVersion || "Unavailable"}
+          </dd>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <dt className="shrink-0">Fleet WebUI</dt>
+          <dd className="min-w-0 truncate font-mono text-text-secondary" title={`v${__APP_VERSION__}`}>v{__APP_VERSION__}</dd>
+        </div>
+      </dl>
     </aside>
   );
 }
@@ -135,18 +147,20 @@ export function FleetShell({
   attentionOnly: boolean;
   onAttentionToggle: () => void;
 }) {
+  const fleetVersion = useFleetVersion();
   const connected = !health.connectionError && health.mode !== "unconfigured";
   return (
     <div className="min-h-screen bg-background-secondary-default text-text-primary">
-      <Sidebar view={view} onViewChange={onViewChange} />
+      <Sidebar view={view} onViewChange={onViewChange} fleetVersion={fleetVersion} />
       {mobileOpen ? (
         <div
           className="fleet-overlay z-50 lg:hidden"
           onClick={() => onMobileOpenChange(false)}
         >
-          <div onClick={(event) => event.stopPropagation()}>
+          <div className="h-full" onClick={(event) => event.stopPropagation()}>
             <Sidebar
               view={view}
+              fleetVersion={fleetVersion}
               onViewChange={(next) => {
                 onViewChange(next);
                 onMobileOpenChange(false);

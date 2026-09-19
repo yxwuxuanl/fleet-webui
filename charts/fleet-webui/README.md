@@ -1,6 +1,6 @@
 # fleet-webui Helm chart
 
-Deploys Fleet WebUI using the automatically detected Pod ServiceAccount to access the Fleet CRDs. The default image is `ghcr.io/yxwuxuanl/fleet-webui:0.1.1`.
+Deploys Fleet WebUI using the automatically detected Pod ServiceAccount to access the Fleet CRDs. The default image is `ghcr.io/yxwuxuanl/fleet-webui:0.1.2`.
 
 ## Install
 
@@ -78,3 +78,7 @@ SSH Secrets must include `ssh-privatekey` and `known_hosts`; HTTPS Secrets may u
 | `server.accessLogEnabled` | `true` | Log method, path, status, response size, duration, direct remote address, and user agent for each HTTP request. |
 | `reconcile.enabled` | `true` | Enable confirmation-based manual reconcile and Bundle patch RBAC. |
 | `ingress.enabled` | `false` | Create an Ingress resource. |
+
+## Version display
+
+The sidebar reads the Fleet controller image tag from the `fleet-controller` Deployment. RBAC includes `get` for this Deployment. Set `fleet.systemNamespace` when Fleet is installed outside `cattle-fleet-system`. Existing installations must apply the updated chart/RBAC for discovery; unavailable versions do not affect console health. WebUI displays its embedded build version.

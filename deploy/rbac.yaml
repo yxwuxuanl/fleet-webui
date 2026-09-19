@@ -9,6 +9,10 @@ kind: ClusterRole
 metadata:
   name: fleet-webui
 rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["fleet-controller"]
+    verbs: ["get"]
   - apiGroups: ["fleet.cattle.io"]
     resources: ["bundles", "gitrepos", "clusters", "bundledeployments"]
     verbs: ["get", "list", "watch"]
@@ -47,7 +51,7 @@ spec:
       serviceAccountName: fleet-webui
       containers:
         - name: fleet-webui
-          image: ghcr.io/yxwuxuanl/fleet-webui:0.1.1
+          image: ghcr.io/yxwuxuanl/fleet-webui:0.1.2
           imagePullPolicy: IfNotPresent
           env:
             - name: RECONCILE_ENABLED
