@@ -11,7 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@internationalized/date": "^3.12.3",
+    "@internationalized/date": "^3.12.4",
     "@remixicon/react": "^4.9.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@tanstack/react-table": "^8.21.3",
